@@ -56,7 +56,12 @@ cd "$(dirname "$0")/.." || exit 2
 # hold real paths and account names -- that is the point of having somewhere to
 # put them. Scanning it would fail the run over files that can never be
 # committed and never reach `git archive`.
-EXCLUDE=(--exclude-dir=.git --exclude=.git --exclude-dir=node_modules --exclude-dir=tmp --exclude=.privacy-names)
+#
+# drafts/ is tracked but private-only: publish.sh deletes it from the export, so it never
+# reaches a public repo and may hold real paths while it is being worked out. It is skipped
+# here for the same reason as tmp/. Credentials still never go in (conventions.md); a draft
+# that graduates into a real directory is redacted and scanned like everything else.
+EXCLUDE=(--exclude-dir=.git --exclude=.git --exclude-dir=node_modules --exclude-dir=tmp --exclude-dir=drafts --exclude=.privacy-names)
 fail=0
 
 NAMES_FILE=tools/.privacy-names

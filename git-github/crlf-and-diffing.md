@@ -21,7 +21,7 @@ Windows 上编辑过的文件带 CRLF 行尾，Linux 上是 LF。直接 diff 会
 
 `text=auto` 让 Git 在入库时把文本文件统一成 LF，检出时按平台还原。这样 Windows 协作者提交的内容在库里始终是 LF，diff 干净。
 
-## ⚠️ 不走 Git 的情况：`.gitattributes` 不生效
+## 不走 Git 的情况：`.gitattributes` 不生效
 
 **这是最容易栽的地方。** 协作者有时是用**目录拷贝或 zip** 把改动交回来的——完全没经过 Git，`.gitattributes` 无从介入，CRLF 原样落到你的工作区。
 

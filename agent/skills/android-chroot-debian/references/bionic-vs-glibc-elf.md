@@ -96,4 +96,4 @@ Program Headers:
    * **优势**：
      * **100% 原生内核执行速度**：零虚拟化开销，直接调度 Android 物理多核 CPU。
      * **真实的 glibc 生态**：拥有标准的 Debian APT 仓库、`/lib/ld-linux-aarch64.so.1` 与完整的 glibc 符号表。
-     * **完美的 AI Agent 兼容性**：不仅完美运行 `agy`，还能原生运行 Node.js、Python 3.12+、Rust、Docker CLI 等全套基础设施。
+     * **AI Agent 兼容性**：可运行 `agy`，也可原生运行 Node.js、Python 3.12+、Rust、Docker CLI 等工具链。

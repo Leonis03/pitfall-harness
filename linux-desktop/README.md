@@ -30,8 +30,8 @@
 ### 1. 软件源与镜像策略
 - **npm / pnpm**：使用 `npmmirror`（`https://registry.npmmirror.com/`），在 `~/.npmrc` 中全局固化。
 - **Python (uv / pip)**：使用清华大学 TUNA 镜像源（`https://pypi.tuna.tsinghua.edu.cn/simple`），分别配置于 `~/.config/uv/uv.toml` 与 `~/.config/pip/pip.conf`。
-- **Node (nvm)**：使用清华源 release 镜像（`https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/`），由 `~/.shell_common` 导出 `NVM_NODEJS_ORG_MIRROR`。
-- **APT 软件包**：使用清华 TUNA 镜像。
+- **Node (nvm)**：使用 npmmirror 官方 Node 镜像（`https://npmmirror.com/mirrors/node`），由 `~/.shell_common` 导出 `NVM_NODEJS_ORG_MIRROR`（避免清华 nodejs-release 源同步滞后缺失高版本）。
+- **APT 软件包**：采用清华 TUNA 双轨镜像。Linux Mint 将官方源收敛在 `/etc/apt/sources.list.d/official-package-repositories.list`，必须同时将 **Mint 专属桌面源**（`https://mirrors.tuna.tsinghua.edu.cn/linuxmint`）与 **Ubuntu 上游基础源**（`https://mirrors.tuna.tsinghua.edu.cn/ubuntu`）均重定向至 TUNA，避免官方海外源 300 kB/s 限速与更新器超时中断。
 
 ### 2. Python 隔离纪律
 严格遵循 PEP 668：
@@ -39,25 +39,65 @@
 - 业务与日常开发统一通过 `uv python install 3.12` 进行旁路管理。
 - 在 `~/.config/uv/.python-version` 中写入 `3.12`，统一使用 `uv run --python 3.12` 执行。
 
-### 3. pnpm 安装规范
-- 默认直接通过官方独立脚本 `curl -fsSL https://get.pnpm.io/install.sh | sh -` 安装最新版 pnpm 12 二进制。
-- 独立二进制落地于 `$PNPM_HOME/bin/pnpm`（即 `~/.local/share/pnpm/bin/pnpm`）。
-- 绝不通过 npm 全局安装，完全保持与 Node 版本的生命周期解耦。
+### 3. Node.js 与 pnpm 12 安装规范及 Vibe Coding 个人机直通策略
+- **Node.js 运行时基准**：
+  - 物理机与 WSL 环境一律标准化为 **Node 24 LTS**（`v24.21.0`+）。
+  - 通过 `nvm install 24 && nvm alias default 24` 锁定全局默认，避免现代 AI CLI 工具（如 MiniMax Code / Claude Code 等）要求 Node ≥ 22.19/24 时的兼容性断层。
+- **pnpm 12 独立二进制安装**：
+  - 默认直接通过官方独立脚本 `curl -fsSL https://get.pnpm.io/install.sh | sh -` 安装最新版 pnpm 12 二进制。
+  - 独立二进制落地于 `$PNPM_HOME/bin/pnpm`（即 `~/.local/share/pnpm/bin/pnpm`）。
+  - 绝不通过 npm 全局安装，完全保持与 Node 版本的生命周期解耦。
+- **Vibe Coding 个人开发机直通放行策略（可选）**：
+  - pnpm 11/12 默认开启严格的供应链安全防御：拦截未审批的构建脚本（`pnpm approve-builds` 交互弹窗），并强制执行 `minimumReleaseAge: 1440`（发布未满 24 小时的新版本禁止解析）。
+  - 若为**个人开发电脑、仅用于敏捷 Vibe Coding / AI Agent 工具链迭代**，无需企业级冷冻防御，可开启全局直通策略，消除弹窗中断并即刻安装最新发布版：
+    在 `~/.config/pnpm/config.yaml` 与 `~/.npmrc` 中配置：
+    ```yaml
+    dangerouslyAllowAllBuilds: true
+    minimumReleaseAge: 0
+    ```
+    详见踩坑索引 2.16 节；不采用该配置时，改用 `pnpm add -g --allow-build=<具体包名>` 逐包放行（2.16 节第 4 条）。
 
 ### 4. 终端仿真器与 Shell 交互增强规范
 - **终端仿真器**：推荐使用现代化 GPU 加速终端 **Ghostty**，原生完整支持 ANSI OSC 52 剪贴板协议与 Kitty Graphics 行内图像渲染协议。
 - **按键解绑与重映射规范**：在 `~/.config/ghostty/config` 中将默认劫持全屏的 `Ctrl+Enter` 解绑透传（`ctrl+enter=unbind`），并将全屏切换改绑为 Linux 通用键（`f11=toggle_fullscreen`）。
-- **文件管理器上下文菜单（右键在 Ghostty 中打开）**：在 Nemo 文件管理器中通过 Nemo Action 机制，配置 `open_in_ghostty.nemo_action`（右键选中文件夹）与 `open_in_ghostty_bg.nemo_action`（右键当前目录空白处），实现与桌面文件管理器的无缝右键集成。
+- **文件管理器上下文菜单（右键在 Ghostty 中打开）**：在 Nemo 文件管理器中通过 Nemo Action 机制，配置 `open_in_ghostty.nemo_action`（右键选中文件夹）与 `open_in_ghostty_bg.nemo_action`（右键当前目录空白处），实现在文件管理器中右键启动 Ghostty。
 - **Shell 插件**：在 Oh-My-Zsh 中启用 `git`、`zsh-autosuggestions`（智能补全）与 `zsh-syntax-highlighting`（实时语法高亮），注意语法高亮插件必须置于插件列表末位。
 
-### 5. 中文输入法体系规范（Fcitx 5 现代化框架）
-- **框架选型**：全面采用现代化 **Fcitx 5** 替代老旧 Fcitx 4 与 IBus，确保 GTK 4 原生模块（`fcitx5-frontend-gtk4`）就绪，打通 Ghostty 等现代终端与应用。
-- **环境接管**：通过 `im-config -n fcitx5` 接管桌面输入法框架。
-- **按键冲突防范**：在 `~/.config/fcitx5/conf/chttrans.conf` 中置空简繁转换热键，避免 `Ctrl+Shift+F` 劫持全局搜索。
+### 5. 中文输入法体系与字体渲染规范（Fcitx 5 + Rime + 更纱黑体）
+- **框架与引擎选型**：使用 **Fcitx 5** 现代化框架与 **Rime（雾凇拼音）** 方案，安装 GTK 4 原生模块（`fcitx5-frontend-gtk4`），使 Ghostty 等现代终端与应用完美支持中文输入。
+- **环境接管与防断层**：通过 `im-config -n fcitx5` 接管桌面输入法框架，并在 `/etc/environment` 与 `~/.xprofile` 固化环境变量，防止非终端 GUI 应用环境变量丢失。
+- **按键冲突防范与光标编辑**：
+  - 在 `~/.config/fcitx5/conf/chttrans.conf` 中置空简繁转换热键，避免 `Ctrl+Shift+F` 劫持全局搜索。
+  - 在 `~/.config/fcitx5/config` 中清空 `AltTriggerKeys`，防止左 Shift 抢占 Rime 的字母直接上屏（`commit_code`）。
+  - 在 `default.custom.yaml` 中配置 `"selector/linear/bindings"`，解绑横向候选栏左右键拦截，允许左右方向键在拼音串中自由穿梭并支持就地增删改。
+- **系统级中文字体与 Fontconfig 防旧字形**：
+  - 在 `/etc/fonts/conf.d/64-default-cjk-sc.conf` 与 `~/.config/fontconfig/fonts.conf` 中配置规范，自动将现代 Web BCP-47 `zh-Hans` 归一化，置顶 `Noto Sans CJK SC`（无衬线）与 `Noto Serif CJK SC`（衬线），彻底压制包含台版/旧字形的 `Droid Sans Fallback`。
+- **终端等宽字体**：终端仿真器（Ghostty / GNOME Terminal）统一采用半角全角严格 1:2 等宽对齐的 **Sarasa Term SC**（更纱黑体终端版），彻底解决制表符与表格线错位。
+- **独立打包与原生应用适配**：对 WPS Office（独立打包 Qt5）与微信桌面版（Chromium/CEF）提供启动包装器，强制透传输入法环境变量。
+- **专题指南**：完整配置复刻步骤与 8 大输入法踩坑详见独立专题文档 [**`gui-and-ime.md`**](gui-and-ime.md)。
+
+### 6. Linux 桌面高频生产力与 Windows 习惯对齐工具链
+针对 Windows 用户初入 Linux Mint（Cinnamon 桌面）的高频交互对标方案：
+- **桌面快捷方式创建**：
+  - 应用程序：按 `Super` 键呼出开始菜单，右键目标软件 -> 选择「添加到桌面」或「添加到面板/任务栏」。
+  - 文件 / 文件夹：在 Nemo 文件管理器中，按住 `Ctrl + Shift` 鼠标拖拽目标到桌面即可生成快捷方式软链接；或按快捷键 `Ctrl + M` 生成链接；终端执行 `ln -s <目标路径> ~/Desktop/<快捷方式名>`。
+- **剪贴板历史记录（对标 Win+V）**：
+  - **Fcitx 5 原生内置**：默认快捷键 `Ctrl + ;`，随处呼出带数字序号的剪贴板历史弹窗，零额外资源开销。
+  - **CopyQ（全功能进阶替代）**：支持图文预览、多标签分类、拼音搜索、无限历史记录。执行 `sudo apt install -y copyq`，偏好设置中将唤出热键绑定为 `Meta+V`（即键盘 `Win+V`）。
+  - **Cinnamon 任务栏 Applet**：右键面板 ->「小工具」->「下载」搜索安装 `Clipboard Indicator`，常驻任务栏管理。
+- **任务管理器与进程监控（对标 Task Manager）**：
+  - **图形化系统监视器**：系统预装 `gnome-system-monitor`。在「系统设置」->「键盘」->「快捷键」->「自定义快捷键」中添加命令 `gnome-system-monitor`，绑定键位为 `Ctrl + Shift + Escape`，完全还原 Windows 肌肉记忆。
+  - **终端现代化监控**：安装高性能交互式 TUI 监视器 `btop`（`sudo apt install -y btop`），支持 CPU/内存/磁盘/网络实时折线图与进程树杀进程。
+- **极速文件检索器（对标 Everything）**：
+  - **FSearch**：Linux 界的 Everything。纯 C 编写、GTK 现代化界面，为本地全盘文件系统建立轻量索引，键入即出结果，支持通配符、正则与大小写过滤，毫秒级响应。通过 PPA 安装：`sudo add-apt-repository ppa:christian-boxdoerfer/fsearch-daily -y && sudo apt update && sudo apt install -y fsearch`。
+  - **Nemo 内置即时搜索**：文件管理器当前目录下直接按 `Ctrl + F`。
+  - **CLI 极速检索工具**：`plocate`（基于数据库秒查：`locate <文件名>`）与 `fd`（比原生 `find` 快数倍：`sudo apt install -y fd-find`）。
 
 ---
 
 ## 二、新装系统踩坑索引与根因排查
+
+> 💡 **关于中文输入法框架（Fcitx5）、Rime（雾凇拼音）、更纱黑体终端等宽对齐、WPS/微信启动包装及 Shift 抢占冲突的完整专题指南，详见独立文档 [`gui-and-ime.md`](gui-and-ime.md)。**
 
 ### 2.1 桌面会话下 `chsh` 切换默认 Shell 后重启终端窗口仍为 Bash
 
@@ -121,29 +161,30 @@ exit 5
    ```
 2. **`bx` 专用 Wrapper 隔离**：
    在 `~/.local/bin/bx` 构建 Wrapper 拦截器，将真实二进制重命名为 `bx-bin`，在子进程内执行时动态清除 `ALL_PROXY`，使 `ureq` 安全回退走 `HTTPS_PROXY`（详见 `agent/brave-search/bx-cli.md`）。
-3. **全局流量无死角覆盖**：
+3. **需要覆盖不读取代理变量的程序时，开启 TUN 模式**：
    若需接管原生不读取代理变量的守护程序或复杂容器流量，在 Clash Verge 客户端中显式开启 **TUN Mode**。
 
 ---
 
-### 2.3 Linux Mint 22 (noble) 官方软件源结构与 Ubuntu 换源差异
+### 2.3 Linux Mint 22 (noble) 官方软件源结构与 Ubuntu 换源差异及更新器超时陷阱
 
 #### 症状
-按传统 Ubuntu 24.04 指南修改 `/etc/apt/sources.list.d/ubuntu.sources` 后，执行 `apt update` 报错或发现 Linux Mint 自身的桌面组件（Cinnamon、mintupdate、mintinstall 等）无法获取更新或提示包冲突。
+1. **换源失效 / 冲突**：按传统 Ubuntu 24.04 指南修改 `/etc/apt/sources.list.d/ubuntu.sources` 后，执行 `apt update` 报错或发现 Linux Mint 自身的桌面组件（Cinnamon、mintupdate、mintinstall 等）无法获取更新或提示包冲突。
+2. **图形更新管理器超时中断**：未换源前，Linux Mint 桌面「更新管理器」（`mintupdate` / Synaptic 后台）刷新包列表时，直接连接海外官方源 `archive.ubuntu.com` 与 `security.ubuntu.com`。下载速率常年被掐在 300~400 kB/s 且频繁丢包，极易触发 TCP 超时断流，弹出「下载软件包信息失败」的红色报错弹窗。
 
 #### 根因剖析
 Linux Mint 22 虽然以 Ubuntu 24.04 (noble) 为底层，但其包管理器架构与 Ubuntu 原厂有显著区别：
 1. Ubuntu 24.04 官方已全面转向 `deb822` 格式（即 `.sources` 格式）。
 2. Linux Mint 22 仍使用传统 one-line-style list 格式，且将源统一收敛在 `/etc/apt/sources.list.d/official-package-repositories.list`。
 3. 该文件内明确拆分为两套源：
-   - **Mint 主仓库**：`packages.linuxmint.com wilma main upstream import backport`
+   - **Mint 主仓库**：`packages.linuxmint.com <codename> main upstream import backport`（根据当前系统代号为 `wilma` 或 `zena`）
    - **Ubuntu 上游仓库**：`archive.ubuntu.com/ubuntu noble main restricted universe multiverse` 等
-如果仅覆写 Ubuntu 仓库，Mint 仓库未换源仍会受限于海外连接速度；若误删或覆盖该文件，则会导致 Mint 专属桌面套件脱落。
+如果仅覆写 Ubuntu 仓库，Mint 仓库未换源仍会受限于海外连接速度；若误删或覆盖该文件，则会导致 Mint 专属桌面套件脱落；如果保持出厂配置，图形更新器拉取全量 50MB+ 索引时便必然遭遇长时阻塞甚至超时中断。
 
 #### 解决方案
 直接编辑 `/etc/apt/sources.list.d/official-package-repositories.list`，将其双轨重定向至清华大学 TUNA 镜像：
 ```list
-deb https://mirrors.tuna.tsinghua.edu.cn/linuxmint wilma main upstream import backport
+deb https://mirrors.tuna.tsinghua.edu.cn/linuxmint zena main upstream import backport #id:linuxmint_main
 
 deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu noble main restricted universe multiverse
 deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu noble-updates main restricted universe multiverse
@@ -151,6 +192,15 @@ deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu noble-backports main restricted 
 
 deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu noble-security main restricted universe multiverse
 ```
+
+#### 实测效果对比
+* **换源前（直连海外源）**：下载速率徘徊在 368 kB/s，更新管理器极易中断报错。
+* **换源后（清华 TUNA 镜像）**：
+  ```text
+  Fetched 53.2 MB in 9s (6,039 kB/s)
+  Reading package lists... Done
+  ```
+  全量 53.2 MB 索引数据在 9 秒内传输完成，平均速率 6,039 kB/s（峰值 8.7 MB/s），**提速逾 16 倍**，彻底消除图形更新管理器由于网络超时造成的报错。
 
 ---
 
@@ -193,10 +243,10 @@ no supported clipboard tool found (install wl-clipboard or xclip)
 sudo apt-get install -y xclip xsel wl-clipboard
 ```
 - Linux Mint 22 默认 X11 环境下 `xclip` / `xsel` 负责接管剪贴板读写。
-- 补全 `wl-clipboard` 确保未来无论切换至 Wayland 会话还是跨环境运行均能无缝兼容。
+- 安装 `wl-clipboard`，使切换到 Wayland 会话后剪贴板命令仍可用。
 
 > **[!IMPORTANT] 进程生命周期陷阱**：
-> 如果 CLI Agent（如 `agy`）在执行 `apt install` 之前就已经在终端中运行，由于 Go 语言底层剪贴板库（如 `atotto/clipboard`）在进程引导的 `init()` 阶段仅探测一次 `exec.LookPath` 并固化在进程内存中，后装的命令无法被当前运行中的进程动态感知，调用 `/copy` 依然会报无可用剪贴板。**必须退出当前会话并重新启动 CLI（例如重启 `agy` 后通过 `/resume` 恢复）**，新进程初始化即可完美调通。
+> 如果 CLI Agent（如 `agy`）在执行 `apt install` 之前就已经在终端中运行，由于 Go 语言底层剪贴板库（如 `atotto/clipboard`）在进程引导的 `init()` 阶段仅探测一次 `exec.LookPath` 并固化在进程内存中，后装的命令无法被当前运行中的进程动态感知，调用 `/copy` 依然会报无可用剪贴板。**必须退出当前会话并重新启动 CLI（例如重启 `agy` 后通过 `/resume` 恢复）**，新进程启动后即可正常访问剪贴板。
 
 ---
 
@@ -215,7 +265,7 @@ sudo apt-get install -y xclip xsel wl-clipboard
    - 当 `agy` 向标准输出发送 OSC 52 转义码时，向 PTY 写字符永远返回成功，因此 CLI 报复制成功；但 GNOME Terminal 遇到未实现的转义序列直接**静默丢弃**。
 
 #### 解决方案
-1. **拥抱现代终端仿真器 Ghostty（强烈推荐）**：
+1. **改用 Ghostty（推荐）**：
    采用 Mitchell Hashimoto 开发的现代化终端 **Ghostty**，原生完整支持 OSC 52 剪贴板读写与 Kitty Graphics 图像协议：
    ```bash
    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/mkasberg/ghostty-ubuntu/HEAD/install.sh)"
@@ -360,7 +410,7 @@ keybind = f11=toggle_fullscreen
 在原生 Linux Mint (Cinnamon) 桌面环境中，系统默认文件管理器为 **Nemo**。默认右键菜单仅有「在终端中打开」（指向系统默认终端）。若日常主力切换为现代化终端 **Ghostty**，需要能在文件管理器中右键任意目录或当前窗口空白处直接拉起 Ghostty 并定位到对应工作目录。
 
 #### 机制剖析：Nemo Actions 扩展模型
-Nemo 提供了比传统 `.desktop` 快捷方式更优雅、粒度更细的扩展机制 —— **Nemo Action**（位于 `~/.local/share/nemo/actions/`）。
+Nemo 提供了比传统 `.desktop` 快捷方式粒度更细的扩展机制 —— **Nemo Action**（位于 `~/.local/share/nemo/actions/`）。
 与 Nautilus 脚本或全局服务相比，Nemo Action 具备以下特征：
 1. **右键目标严格区分**：
    - **右键选中的文件夹**：需要设置 `Selection=s`（单选），`Extensions=dir;`（仅对目录生效），并通过变量 `%F` 传入选中对象的绝对路径。
@@ -403,7 +453,285 @@ Nemo 提供了比传统 `.desktop` 快捷方式更优雅、粒度更细的扩展
   - `Exec=ghostty --working-directory=%F`：%F 展开为选中的文件/文件夹路径（由 `Quote=double` 自动引号转义防空格）。
   - `Exec=ghostty --working-directory=%P`：%P 展开为当前窗口打开的主目录路径。
   - `Icon-Name=com.mitchellh.ghostty`：自动关联 Ghostty 官方桌面图标，右键菜单显示美观一致。
+---
 
+### 2.12 AI Agent 执行 `sudo` 命令时无限阻塞（NOPASSWD 配置）
 
+#### 症状
+AI Agent（如 Claude Code、Antigravity CLI 等）在后台任务或子进程中执行带 `sudo` 的命令（如 `sudo apt install`、`sudo tee /etc/...`）时，命令挂起不返回。日志停留在 `[sudo] password for <your-linux-user>:`，Agent 无法向该提示符写入响应，任务永久阻塞直至超时或手动 kill。
 
+#### 根因剖析
+1. **`sudo` 默认要求 TTY 密码交互**：`sudo` 默认启用密码认证策略。非交互式进程（Agent 通过 subprocess / `bash -c` 派生的子进程）缺乏可供 `sudo` 写入提示符并读取响应的 TTY，密码提示永久阻塞进程。
+2. **Agent 进程链无法响应 PTY 提示**：Agent 通常通过管道或伪终端封装子进程，但密码输入场景需要用户在真实终端手工键入；Agent 没有向该 PTY 注入键盘事件的能力。
 
+#### 解决方案
+在 `/etc/sudoers.d/nopasswd-<your-linux-user>` 中为当前用户授权 `NOPASSWD: ALL`。此步骤本身需要一次人工密码输入，一次配置永久生效：
+```bash
+echo "$(whoami) ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/nopasswd-$(whoami)
+sudo chmod 0440 /etc/sudoers.d/nopasswd-$(whoami)
+sudo visudo -cf /etc/sudoers.d/nopasswd-$(whoami) && echo "OK"
+```
+验证：`sudo -n true && echo "no-password OK"`（`-n` 即 non-interactive，有密码要求时直接报错而非阻塞）
+
+> **安全边界**：仅适用于个人单用户开发机。多用户或生产服务器环境下应精细化配置允许的命令范围，而非 `ALL`。
+
+---
+
+### 2.13 pnpm 12 全局安装 CLI 工具时交互式 build 提示阻塞 & Node.js 缺失导致 postinstall 失败
+
+#### 症状
+1. 执行 `pnpm add -g @anthropic-ai/claude-code` 或其他含 postinstall 的全局包时，命令等待交互输入：
+   ```
+   Choose which packages to build (<space> to select, <enter> to confirm):
+   > [ ] @anthropic-ai/claude-code
+   ```
+   AI Agent 无法向该提示发送 space / enter，任务永久阻塞。
+2. 即使通过 `--allow-build=<pkg>` 绕过交互，若 Node.js 未安装或不在 PATH 中，postinstall 失败：
+   ```
+   .../@anthropic-ai/claude-code postinstall$ node install.cjs
+   │ sh: 1: node: not found
+   └─ Failed in 6ms
+   Error: ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED  exit 1
+   ```
+
+#### 根因剖析
+1. **pnpm 10+ 的 lifecycle scripts 安全策略**：pnpm 10 起对全局包的 postinstall / build 脚本默认要求用户显式授权，防止供应链攻击自动执行任意脚本。不带 `--allow-build` 参数时，pnpm 12 会启动交互式授权 UI；在非交互式环境（AI Agent 子进程）中该 UI 无限等待输入。
+2. **pnpm 独立二进制不捆绑 Node.js**：通过 `get.pnpm.io/install.sh` 安装的 pnpm 是独立可执行文件，不包含 Node.js 解释器。postinstall 执行 `node install.cjs` 依赖系统 PATH 中的 `node`；若 nvm 尚未初始化或 Node.js 未安装，postinstall 以 exit 127 失败。
+
+#### 解决方案
+1. **安装顺序：Node.js 先于 pnpm 全局包**：在安装任何含 postinstall 脚本的全局包之前，先通过 nvm 安装并激活 Node.js：
+   ```bash
+   export NVM_DIR="$HOME/.nvm"
+   . "$NVM_DIR/nvm.sh"
+   nvm install --lts
+   ```
+2. **始终附加 `--allow-build=<pkg>` 参数**：对需要 postinstall 的包，在 `pnpm add -g` 时显式声明：
+   ```bash
+   pnpm add -g --allow-build=@anthropic-ai/claude-code @anthropic-ai/claude-code
+   pnpm add -g --allow-build=opencode-ai opencode-ai
+   ```
+   包名须与 `--allow-build` 参数完全一致（精确匹配 `package.json` 中的 `name` 字段）。
+
+> **与 2.16 的关系**：逐包 `--allow-build=<pkg>` 是本节的默认做法，作用域可控，团队机与生产环境用这一条即可。若这台电脑只跑自己的 Vibe Coding / AI Agent 工具链，也可以选用 2.16 节的全局直通配置（`dangerouslyAllowAllBuilds: true` + `minimumReleaseAge: 0`）一次性免掉每次的 `--allow-build`；该配置为**可选**，会放行全部依赖的构建脚本并取消新版本冷却期，共享机与 CI 不要照搬。
+---
+
+### 2.14 Fontconfig 缺字回退优先级错乱致中文字体呈现繁体/台湾旧字形与衬线体失配
+
+#### 症状
+1. **中文字体呈现繁体 / 旧字形**：在主系统语言为英文（`LANG=en_US.UTF-8`）的机器上，使用 Google Chrome 访问未声明 `<html lang="zh-CN">` 的网页（如 GitHub、Reddit、英文技术文档中的中文评论，或使用现代 BCP-47 标准 `<html lang="zh-Hans">` 的站点），以及在 Linux 原生微信中，中文字体出现明显的古板感、日式或台湾旧字形特征（如「骨」上部左折、「关」首两笔为点撇、「门」带点等）。
+2. **衬线体（Serif）中文字体回退失配**：当网页指定 `font-family: serif` 时，中文内容没有匹配到思源宋体，而是跌落到等宽字体。
+
+#### 根因剖析
+通过深入排查 Fontconfig 的规则优先级与解析流水线（`fc-match -v`），确认存在三大底层诱因：
+1. **`65-droid-sans-fallback.conf` 优先级抢跑**：系统预装了 `fonts-droid-fallback`，其规则位于 `/etc/fonts/conf.d/65-droid-sans-fallback.conf`，为 `sans-serif` 注入了 `<prefer><family>Droid Sans Fallback</family></prefer>`。该规则优先级为 65，早于系统默认 Noto CJK 的 70。`Droid Sans Fallback` 诞生于 2008 年早期 Android 时代，其中大量字符采用了台湾教育部标准与传统旧字形，缺字回退时被优先调用。
+2. **`70-fonts-noto-cjk.conf` 规则覆盖过于严苛**：官方规则只严格匹配了 `lang="zh-cn"` 这一个字符串。现代 Web 广泛采用的标准 `zh-Hans` 或通用 `zh` 声明无法命中该规则，直接跌落至 `Droid Sans Fallback`。
+3. **缺少系统级 Serif CJK 回退链**：Fontconfig 原生配置中没有为泛指的 `serif` 挂载对应的简体中文宋体。
+
+#### 解决方案
+在系统级 `/etc/fonts/conf.avail/64-default-cjk-sc.conf`（并在 `/etc/fonts/conf.d/` 启用，同步至 `~/.config/fontconfig/fonts.conf`）注入规则：
+1. **BCP-47 规范归一化**：自动将 `zh-hans` 模式重定向归一至 `zh-cn`。
+2. **无后缀别名补齐**：将通用的 `Noto Sans CJK` 与 `Noto Serif CJK` 强行绑定至 `SC`（简体中文，TTC Index 2）。
+3. **回退队列置顶**：在 `sans-serif` 与 `serif` 的 `<prefer>` 队列中将 `Noto Sans CJK SC` 与 `Noto Serif CJK SC` 放在最前端，彻底压制并淘汰 `Droid Sans Fallback`。
+4. **保留正规繁体支持**：若网页显式声明 `zh-tw` / `zh-hk`，依然能够正确调用 `Noto CJK TC/HK`（Index 3/4）。
+
+完整配置原件：
+```xml
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <!-- 0. Normalize BCP-47 zh-Hans to zh-cn -->
+  <match target="pattern">
+    <test name="lang" compare="contains"><string>zh-hans</string></test>
+    <edit name="lang" mode="assign"><string>zh-cn</string></edit>
+  </match>
+
+  <!-- 1. Map generic CJK families without region suffix to SC -->
+  <match target="pattern">
+    <test name="family"><string>Noto Sans CJK</string></test>
+    <edit name="family" mode="assign" binding="strong"><string>Noto Sans CJK SC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="family"><string>Noto Serif CJK</string></test>
+    <edit name="family" mode="assign" binding="strong"><string>Noto Serif CJK SC</string></edit>
+  </match>
+
+  <!-- 2. Language-based matching for Simplified Chinese and generic Chinese -->
+  <match target="pattern">
+    <test name="lang"><string>zh</string></test>
+    <test name="family"><string>sans-serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK SC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang"><string>zh-cn</string></test>
+    <test name="family"><string>sans-serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK SC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang"><string>zh</string></test>
+    <test name="family"><string>serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK SC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang"><string>zh-cn</string></test>
+    <test name="family"><string>serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK SC</string></edit>
+  </match>
+
+  <!-- 3. Default fallback order for generic font families -->
+  <alias>
+    <family>sans-serif</family>
+    <prefer>
+      <family>Noto Sans</family>
+      <family>Noto Sans CJK SC</family>
+      <family>Noto Sans CJK TC</family>
+      <family>Noto Sans CJK JP</family>
+      <family>Noto Color Emoji</family>
+    </prefer>
+  </alias>
+  <alias>
+    <family>serif</family>
+    <prefer>
+      <family>Noto Serif</family>
+      <family>Noto Serif CJK SC</family>
+      <family>Noto Serif CJK TC</family>
+      <family>Noto Serif CJK JP</family>
+      <family>Noto Color Emoji</family>
+    </prefer>
+  </alias>
+</fontconfig>
+```
+
+#### 实测验证矩阵
+执行 `sudo ln -sf /etc/fonts/conf.avail/64-default-cjk-sc.conf /etc/fonts/conf.d/64-default-cjk-sc.conf && fc-cache -f` 后，全场景命中检验：
+```text
+类型         | 检索 Target / 属性       | 实际匹配字体          | TTC Index
+---------------------------------------------------------------------------------
+sans-serif | sans-serif:charset=9aa8 | Noto Sans CJK SC    | Index 2 (简体中文)
+sans-serif | sans-serif:lang=zh-Hans | Noto Sans CJK SC    | Index 2 (简体中文)
+serif      | serif:charset=9aa8      | Noto Serif CJK SC   | Index 2 (简体中文)
+serif      | serif:lang=zh-Hans      | Noto Serif CJK SC   | Index 2 (简体中文)
+direct     | Noto Sans CJK           | Noto Sans CJK SC    | Index 2 (简体中文)
+fallback   | sans-serif:lang=zh-tw   | Noto Sans CJK TC    | Index 3 (繁体中文)
+```
+
+---
+
+### 2.15 Fcitx 5 Rime 横向候选栏劫持左右方向键阻断拼音就地编辑
+
+#### 症状
+使用 Fcitx 5 + Rime（雾凇拼音）输入长拼音串（例如打出 `nihaoshijie`）时，按下键盘左方向键 `←` 或右方向键 `→`，光标无法在拼音字母之间穿梭以修改或插入字母，而是在下方的横向候选词列表之间高亮跳转。
+
+#### 根因剖析
+1. Rime 输入引擎流水线顺序为：`key_binder` -> `speller` -> `punctuator` -> `selector` -> `navigator` -> `express_editor`。
+2. 负责处理输入缓冲区内光标移动的是 `navigator` 处理器（支持 `rewind` / `forward` / `left_by_char`）。
+3. 但 `selector`（选词处理器）运行在 `navigator` 之前。在 Fcitx 5 默认的横向单行候选条（`Horizontal | Linear`）模式下，`selector` 的 C++ 底层硬编码将 `Left` 绑定为 `PreviousCandidate`，`Right` 绑定为 `NextCandidate`。
+4. 候选词框一旦弹出，左右方向键直接被 `selector` 截获消费，导致按键事件根本无法向下传递给 `navigator`。
+
+#### 解决方案
+在 `~/.local/share/fcitx5/rime/default.custom.yaml` 的 patch 块中显式覆盖 `selector/linear/bindings`，将选词操作解绑并交由 `Tab` / `Shift+Tab` 处理，从而将 `Left` / `Right` 按键完整释放给 `navigator`：
+```yaml
+patch:
+  # 释放左右键给光标移动：解绑 selector 默认对横向候选条左右键的拦截
+  "selector/linear/bindings":
+    Shift+Tab: previous_candidate
+    Tab: next_candidate
+```
+执行 `rime_deployer --build ...` 重新编译并 `fcitx5-remote -r` 热重载后，左右方向键即可在拼音字母间随意穿梭，配合 `Backspace`/`Delete` 即可实现拼音就地无损修改。完整配置细节详见专题指南 [`gui-and-ime.md`](gui-and-ime.md) 坑 8。
+
+---
+
+### 2.16 pnpm 12 默认拦截依赖构建脚本与 24 小时发布冷却门禁（个人机 Vibe Coding 直通放行策略）
+
+#### 症状
+1. **全局安装弹出审批拦截**：在执行 `pnpm add -g <package>`（例如 `@minimax-ai/code` 或含有原生模块的工具）时，终端被阻塞并弹出交互式选择框：
+   ```text
+   Ignored build scripts: @minimax-ai/code@0.6.2, better-sqlite3@12.11.1.
+   Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
+   Choose which packages to build (<space> to select, <enter> to confirm):
+   ```
+   在自动化脚本或非交互环境中，安装会直接跳过构建脚本导致二进制无法运行，或直接报 `ERR_PNPM_IGNORED_BUILDS` 失败退出。
+2. **最新发布的版本无法及时安装**：尝试安装刚刚发布（不足 24 小时或 48 小时）的包或补丁版本时，pnpm 的供应链策略会阻止解析该版本，提示：
+   ```text
+   passes supply-chain policies (verified ...)
+   ```
+   导致明明在 npm 网页上看到了最新版本，本地却解析不到。
+3. **老版本 Node 下原生模块 postinstall 崩溃**：若本地 Node 仍为 `v22.16.0`（低于 22.19.0），在构建原生扩展（如 `@minimax-ai/code`）时直接报环境不受支持错误：
+   ```text
+   [MCode] Unsupported Node.js environment.
+   Detected: linux-x64, Node 22.16.0 (ABI 127)
+   Supported: Node 22.19+, 24, 25, or 26.
+   ```
+
+#### 根因剖析
+1. **pnpm 11+ 安全模型升级（严格构建拦截）**：
+   从 pnpm 11 开始，官方彻底移除了旧版的 `onlyBuiltDependencies`，改为默认实施严格的依赖构建控制（`strictDepBuilds: true`）。任何第三方 npm 包内部附带的 `preinstall`、`install`、`postinstall` 生命周期脚本默认全被拦截，强制要求开发者交互式批准。
+2. **供应链防御默认开启（Minimum Release Age）**：
+   为防御 npm 恶性供应链投毒攻击（黑客盗取凭据后在几分钟内发布投毒版本），pnpm 11 起默认开启 `minimumReleaseAge: 1440`（1440 分钟，即 24 小时冷却期）。新发布的包必须在公共注册表存在满 24 小时、经由社区安全检测后才被允许解析。
+3. **个人电脑开发 vs 生产环境/企业 CI 的诉求冲突**：
+   上述安全特性旨在保护严肃的企业级 CI/CD 管道与生产构建。但在**个人主力开发机、专用于敏捷 Vibe Coding / AI Agent 工具链日常开发**的场景下，开发者频繁安装最新版 AI CLI 工具、临时试验原型包，高频的命令行阻塞审批与长达 1~2 天的版本冷冻窗口严重破坏了心流与开发效率。
+
+#### 解决方案与配置规范
+
+##### 1. 运行时基准：标准化 Node 24 LTS
+物理机与 WSL 环境统一升级并锁定至 **Node 24 LTS**（如 `v24.21.0`），并在 `~/.shell_common` 导出官方国内镜像以解决清华源历史版本滞后问题：
+```bash
+# 1. 升级并锁定全局 Node 24
+nvm install 24
+nvm alias default 24
+
+# 2. 在 ~/.shell_common 中导出国内镜像
+export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
+```
+
+##### 2. Vibe Coding 个人机直通放行策略
+在个人开发机全局配置中，开启所有构建脚本自动放行，并将发布冷却期置为 0：
+
+* **方法一：通过 CLI 命令一键写入全局配置**：
+  ```bash
+  # 写入 ~/.config/pnpm/config.yaml
+  pnpm config set dangerously-allow-all-builds true -g
+  pnpm config set minimum-release-age 0 -g
+  ```
+
+* **方法二：直接维护配置文件**：
+  1. 在 `~/.config/pnpm/config.yaml`（pnpm 官方全局配置文件，原件在 [`linux-desktop/files/pnpm/config.yaml`](files/pnpm/config.yaml)）：
+     ```yaml
+     dangerouslyAllowAllBuilds: true
+     minimumReleaseAge: 0
+     ```
+  2. 在 `~/.npmrc` 中同步固化（兼顾读取 npm 格式工具链）：
+     ```ini
+     registry=https://registry.npmmirror.com/
+     dangerously-allow-all-builds=true
+     minimum-release-age=0
+     ```
+
+* **单项目 / Monorepo 级放行**（仅在特定工程需要时）：
+  在项目根目录的 `pnpm-workspace.yaml` 中配置：
+  ```yaml
+  dangerouslyAllowAllBuilds: true
+  minimumReleaseAge: 0
+  ```
+
+##### 3. 实测效果
+配置后执行 `pnpm add -g @minimax-ai/code`，原生 C++ 扩展与 postinstall 脚本静默全自动编译完成，零交互弹窗、零延迟秒级装毕。
+
+##### 4. 适用边界与不采用时的替代方案
+
+上面的 `dangerouslyAllowAllBuilds: true` 与 `minimumReleaseAge: 0` 属于**可选配置**，只适合"这台电脑仅用于自己的 Vibe Coding / AI Agent 工具链"的场景。共享开发机、团队仓库与任何生产 / CI 环境**不要照搬**：`dangerouslyAllowAllBuilds` 会放行全部依赖的安装脚本，等于主动放弃 pnpm 的供应链防护；`minimumReleaseAge: 0` 则取消了新版本冷却期。
+
+不采用全局直通时，按需逐包放行即可，效果等价但范围可控：
+
+```bash
+# 放行单个包的构建脚本（必须写准确的包名，不支持通配）
+pnpm add -g --allow-build=better-sqlite3 <package>
+
+# 交互式挑选要放行的依赖
+pnpm approve-builds
+```
+
+`pnpm approve-builds` 是交互式弹窗，**AI Agent 无法应答、会永久阻塞**，自动化场景只能用 `--allow-build=<具体包名>` 逐个放行。若仍想保留供应链防护，只调低冷却门槛即可，不必置 0：
+
+```bash
+pnpm config set minimum-release-age 60 -g
+```

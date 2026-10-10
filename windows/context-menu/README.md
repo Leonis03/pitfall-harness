@@ -11,18 +11,18 @@
 4. [ContextMenuMgr 拦截机制与服务状态答疑](#4-contextmenumgr-拦截机制与服务状态答疑)
 5. [新增 Open in WSL 快捷右键菜单](#5-新增-open-in-wsl-快捷右键菜单)
 6. [WSL 终端历史命令联想补全（类似 pwsh）配置建议](#6-wsl-终端历史命令联想补全配置建议)
-7. [本次操作对系统注册表的改动清单](#7-本次操作对系统注册表的改动清单)
+7. [系统注册表改动清单](#7-系统注册表改动清单)
 
 ---
 
 ## 1. ContextMenuMgr 项目架构与核心理念分析
 
-### 🌟 核心理念：“先拦截，再审核”
+### 工作方式：先拦截，再审核
 `ContextMenuMgr`（Context Menu Manager Plus）基于 **.NET 10 + WPF-UI** 开发，与市面上普通右键开关工具最大的区别在于：
 * **主动防御**：后台服务实时监控注册表，当检测到第三方软件插入未知右键菜单时，先自动置为 **Quarantine（隔离禁用）** 状态，由用户在「待审核」列表中决定是否放行。
 * **双模态支持**：同时支持传统菜单（Classic `shell` / `shellex`）与 Windows 11 现代菜单（Packaged COM / MSIX AppX）。
 
-### 🏛️ 四大进程与权限链路模型
+### 进程与权限链路
 1. **链路 A (常规运行)**：`Frontend -> Named Pipe -> Backend Windows Service (LocalSystem)`，普通开关和扫描不弹 UAC 提权。
 2. **链路 B (服务运维)**：`Frontend -> UAC (runas) -> Bootstrapper`，仅用于服务的安装、卸载和修复。
 3. **链路 C (跨桌面唤醒)**：`Service -> WTS Token -> CreateProcessAsUser`，在用户交互桌面拉起托盘与通知。
@@ -32,14 +32,14 @@
 
 ## 2. AMD Software: Adrenalin Edition 排查与屏蔽
 
-### ❓ 为什么在 ContextMenuMgr 中搜“AMD Software”搜不到？
+### 为什么在 ContextMenuMgr 中搜“AMD Software”搜不到？
 * **右键菜单类型**：属于 **Windows 11 Packaged COM 现代扩展**，包名为 `AdvancedMicroDevicesInc-RSXCM`。
 * **注册名与显示名不一致**：
   * 清单与注册表中登记的静态名称为 **`Catalyst Context Menu extension`**（CLSID: `{FDADFEE3-02D1-4E7C-A511-380F4C98D73B}`）。
   * 菜单中看到的 `AMD Software: Adrenalin Edition` 是后台 `atiacm64.dll` 在右键被弹出时动态从资源库提取渲染的。
 * **APP 检索方式**：在 ContextMenuMgr 中搜索 **`Catalyst`**、**`atiacm`** 或 **`RSXCM`** 即可找到。
 
-### 🛡️ 屏蔽该项对应的注册表
+### 屏蔽该项对应的注册表
 在当前用户屏蔽列表中添加了该 CLSID（已成功在右键中隐藏）：
 * **路径**：`HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Blocked`
 * **键值**：`{fdadfee3-02d1-4e7c-a511-380f4c98d73b}` = `"Catalyst Context Menu extension"`
@@ -48,7 +48,7 @@
 
 ## 3. Open in Terminal 排查、修复与图标优化
 
-### ❓ 为什么 Terminal 开关开启，桌面和 D 盘根目录却没有？
+### 为什么 Terminal 开关开启，桌面和 D 盘根目录却没有？
 1. **对象类型机制**：
    * 桌面空白处对应 **`DesktopBackground`**。
    * 磁盘根目录（如 `D:\\`）对应 **`Drive\\Background`**。
@@ -58,7 +58,7 @@
 3. **UWP 扩展挂起现象**：
    * 当系统安装了其它 Shell 扩展（如 PowerShell 7）或 Explorer 刷新时，后台运行中的 Windows Terminal UWP COM 代理进程偶发性断开挂载。
 
-### 🛠️ 实施的修复与全场景注册
+### 修复：注册到 5 个场景
 已通过标准注册表 Shell 键将 `Windows Terminal` 完整注册至以下 5 个场景：
 1. **桌面空白处** (`DesktopBackground`)
 2. **磁盘驱动器根目录空白处** (`Drive\\Background`，带 `-d "%V"` 自动定位)
@@ -66,7 +66,7 @@
 4. **普通文件夹内部空白处** (`Directory\\Background`，带 `-d "%V"`)
 5. **普通文件夹图标** (`Directory`，带 `-d "%1"`)
 
-### 🎨 修复官方图标显示
+### 修复官方图标显示
 * **原因**：之前直接指向 `wt.exe`（0 字节 UWP 桩文件），Explorer 无法提取嵌入图标，显示为默认蓝白窗口。
 * **解决**：从 Terminal 官方包中提取了高清矢量 `terminal.ico`（存放在 `%LOCALAPPDATA%\\Microsoft\\WindowsTerminal\\terminal.ico`），并统一将注册表的 `Icon` 属性指向该真实图标。
 
@@ -84,7 +84,7 @@
 
 ## 5. 新增 Open in WSL 快捷右键菜单
 
-已为您系统配置了 **「Open in WSL」** 右键菜单：
+已配置 **「Open in WSL」** 右键菜单：
 * **终端联动**：右键点击后，自动调用 Windows Terminal 打开 **`Ubuntu`** 标签页，并自动 `cd` 进入当前右键所在的目录路径。
 * **专属图标**：绑定了系统自带的官方 WSL 企鹅图标（`C:\\Program Files\\WSL\\wslsettings\\Assets\\wsl.ico`）。
 * **覆盖场景**：桌面空白处、磁盘根目录（如 `D:\\`）、普通文件夹及文件夹内部空白处。
@@ -122,7 +122,7 @@ source ~/.bashrc
 
 ---
 
-## 7. 本次操作对系统注册表的改动清单
+## 7. 系统注册表改动清单
 
 | 注册表目标路径 | 键值名称 | 类型 | 数据内容 / 作用 |
 | :--- | :--- | :--- | :--- |

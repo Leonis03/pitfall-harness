@@ -74,6 +74,48 @@
 | `Eligibility check failed: ... EOF` | 代理/端点瞬时抖动，**直接重试** |
 | 跑完后 settings.json 键的顺序变了 | agy 启动时会重写该文件，内容不变 |
 
+## 批量只读审阅任务（Windows 宿主，agy 1.2.14，2026-10-02）
+
+让 agy 读 88 个 Markdown 文件、指出哪些文字像机器写的，期间遇到的情况。
+
+- **没有 `command` 权限，agy 就找不到文件。** 列目录、通配、搜索都要走 shell 命令；headless 下被软拒，
+  `agy -p` 以 **0** 退出、回复为空，stderr 有 `jetski: no output produced`。在 prompt 里直接给出文件清单
+  （绝对路径），并写明只能用读文件工具（`view_file`，由 `read_file` 覆盖）。只读任务别用
+  `--dangerously-skip-permissions`。
+- **别在一次对话里塞 70 多个文件。** 读到约 150 步（73 个文件）时 agy 会压缩上下文；此后每个
+  `agent_response` 的 `output_tokens` 都是 0，后面各跟一条 `error_message`，反复重试却始终不输出回复，
+  读文件阶段的发现全部丢失。每批 16 到 23 个文件则正常结束。
+- **`-p -`（从 stdin 读 prompt）不可靠**：一次回了句问候，像是 prompt 为空；另一次去尝试执行命令。
+  `agy -p "$(cat prompt.md)"` 可用（6 KB 的 prompt 远低于 Windows 约 32 KB 的命令行上限）。
+- **`error: Error: empty prompt`** 表示 prompt 文件为空或不存在。启动前先查：`wc -c`、`head`、`tail`，
+  并数一下路径行数。
+- **Windows 路径用代码拼，不要写在 shell 文本里。** 带引号的 heredoc、`sed`、`awk` 的替换串里反斜杠会被
+  折叠（`D:\SQLData\vibe-pitfalls-notes-private\x` 变成 `D:SQLDataibe-pitfalls-notes-private\x`），
+  agent 拿到的是不存在的路径。用小脚本以 `chr(92)` 或 `pathlib` 拼接写出 prompt，再确认第一条和最后一条
+  路径存在。
+- **`--output-format stream-json` 运行期间给的是进度，不是回复。** 事件里有工具名、路径（`AbsolutePath`）
+  和 token 用量。统计状态为 `DONE` 的 `view_file` 步骤，就知道读了多少个文件。把 stdout 重定向到文件，
+  任务还在跑时用短脚本读取。
+- **输出文件在增长不等于任务结束。** 文本模式下文件在几分钟里逐步变大（1.3 KB、4.7 KB、8.9 KB）。
+  判断要看进程（`tasklist`）和退出状态，不要看大小。有一次报告里同一份回答连写了三遍，各有细微差别：
+  以最后一遍为准。
+- **引文可信，行号不可信。** 引用的原文每次都能在文件里逐字找到（抽查 46 条，用 `grep -F` 全部命中），
+  但有几处 `路径:行号` 指错了行。用引文重新定位。
+- **可以并行。** 两个 `agy -p` 进程同时启动，互不影响。
+- **杀掉外层循环不会停掉 agy。** 对跑批处理循环的 `sh` 执行 `taskkill`，当前的 `agy.exe` 仍会继续跑；
+  可用来让当前这批跑完、其余几批改手动接管。
+
+- **`INTERNAL (code 500)` 加 exit 3 可能和输入有关。** 一个 14 个文件的批次连续两次失败
+  （`retryable: false`）；对半拆开后，一半总是失败、一半成功，再拆一次缩小到两个普通 Markdown 文件
+  （没有异常字节，最长行约 1000 字符）。原因最终没找到，所以别断定是大小或内容问题：
+  对批次做二分、跳过该文件、改为手工审阅。
+- **如果连一句 `hi` 在 IDE 和 CLI 里都卡在 `Loading...`，先怀疑服务端。** 同一会话后来所有请求都卡住，
+  交互式的也一样，本机没有任何变化。先停止发任务，稍后再试。
+- **在 Windows 上驱动交互界面，可以走 WSL 的 tmux。** `tmux new-session -d -s agy -c <目录> agy`，
+  `tmux send-keys -t agy -l "<单行提示>"` 再发 `Enter`，用 `tmux capture-pane -p` 读屏，
+  读到了信任提示、主界面和"工作中"转圈。每个新工作区首次都会问"是否信任此项目"，回车即接受，
+  要发送前先想好。`tmux kill-session` 有一次提示 "server exited unexpectedly"，无碍。
+
 ## 附：本机已验证事实（2026-09-26）
 
 - `agy` 路径 `$HOME/.local/bin/agy`，v1.2.11，原生 Linux ELF。

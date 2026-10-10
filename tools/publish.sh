@@ -4,9 +4,9 @@
 #   bash tools/publish.sh <public-clone> [<skills-clone>]
 #   bash tools/publish.sh --skip-gate <public-clone> [<skills-clone>]
 #
-#   <public-clone>  clone of Leonis03/vibe-pitfalls-notes. Receives the whole
+#   <public-clone>  clone of Leonis03/pitfall-harness. Receives the whole
 #                   tree.
-#   <skills-clone>  clone of Leonis03/vibe-coding-pitfalls-skills. Receives
+#   <skills-clone>  clone of Leonis03/pitfall-harness-skills. Receives
 #                   agent/skills/<name>/ as skills/<name>/ (vendored skills
 #                   left out), a README.md generated from each SKILL.md's
 #                   frontmatter, and both licenses.
@@ -86,6 +86,10 @@ echo "exporting $REF = $(git rev-parse --short "$REF")"
 STAGE=$(mktemp -d "$REPO/tmp/publish-XXXXXX") || exit 2
 trap 'rm -rf "$STAGE"' EXIT
 git archive "$REF" | tar -x -C "$STAGE"
+# drafts/ is private-only (conventions.md): never part of an export. Remove it before
+# the gate and before anything is written, and refuse to go on if it survives.
+rm -rf "$STAGE/drafts"
+[ ! -e "$STAGE/drafts" ] || { echo "could not remove drafts/ from the export" >&2; exit 2; }
 
 # --- gate -------------------------------------------------------------------
 names=""
@@ -170,11 +174,11 @@ if [ -n "$SKL" ]; then
     rows+="| [\`$name\`](skills/$name/SKILL.md) | $desc |"$'\n'
   done
   cat > "$SKL/README.md" <<EOF
-# vibe-coding-pitfalls-skills
+# pitfall-harness-skills
 
 Agent skills for Claude Code and Antigravity (\`agy\`). Most of them encode a failure that
 had already cost real time, so the agent does not walk into it again. They are exported from the same source as
-[vibe-pitfalls-notes](https://github.com/Leonis03/vibe-pitfalls-notes), where the
+[pitfall-harness](https://github.com/Leonis03/pitfall-harness), where the
 pitfall index explains why each one exists; a few skills link to docs there.
 
 | Skill | What it is for |
@@ -183,8 +187,8 @@ ${rows}
 ## Install
 
 \`\`\`bash
-npx skills add Leonis03/vibe-coding-pitfalls-skills --list                      # see what is here
-npx skills add Leonis03/vibe-coding-pitfalls-skills --skill <name> -g --copy    # one skill, user-level
+npx skills add Leonis03/pitfall-harness-skills --list                      # see what is here
+npx skills add Leonis03/pitfall-harness-skills --skill <name> -g --copy    # one skill, user-level
 \`\`\`
 
 \`--copy\` copies the files into the agent directories instead of symlinking them. Copying by hand

@@ -13,17 +13,17 @@ argument-hint: "[command] [namespace] [key] [value]"
 arguments: [action, namespace, key]
 ---
 
-# Android 与 小米 MIUI / HyperOS 系统设置自动化运维指南 (正式版)
+# Android 与 小米 MIUI / HyperOS 系统设置自动化运维指南
 
 在已 Root 的 Android 设备（Termux Debian chroot 容器）上运行 AI Agent（Claude Code、Antigravity CLI / `agy`）或后端编译服务时，常常需要操作宿主系统的 `SettingsProvider` 数据库（如自动化配置 DoT 私人 DNS、彻底关闭幽灵进程查杀、锁定 120Hz 高刷新率、收紧 PowerKeeper 保活、全量备份还原系统设置）。
 
-然而，由于 Android 原生 Bionic libc 动态链接器、Magisk tmpfs 库覆写以及 Linker Namespace 隔离的综合影响，在 chroot 容器内直接调用宿主 `/system/bin/settings` 会连续引发崩溃。本 Skill 提炼真实探索中的排错经验，提供基于**针对性 Mount Namespace 穿透（`nsenter -t 1 -m`）**的零副作用解决方案。
+然而，由于 Android 原生 Bionic libc 动态链接器、Magisk tmpfs 库覆写以及 Linker Namespace 隔离的综合影响，在 chroot 容器内直接调用宿主 `/system/bin/settings` 会连续引发崩溃。本 Skill 提炼真实探索中的排错经验，提供基于**针对性 Mount Namespace 穿透（`nsenter -t 1 -m`）**的解决方案。
 
 ---
 
-## 1. 基于 `miui-settings.sh` 的全功能执行
+## 1. 运行 `miui-settings.sh`
 
-> **路径规范**：技能已安装部署于 `~/.gemini/config/skills/android-miui-settings/` 以及 `/root/vibe-coding-pitfalls-private/agent/skills/android-miui-settings/`。运行脚本即可开箱即用。
+> **路径规范**：技能已安装部署于 `~/.gemini/config/skills/android-miui-settings/` 以及 `/root/vibe-coding-pitfalls-private/agent/skills/android-miui-settings/`。
 
 ### 1.1 私人 DNS (DoT) 快速配置与验证
 Android 的私人 DNS 功能通过 DNS-over-TLS (DoT) 对全系统 DNS 进行加密传输，内置主流服务商别名：
@@ -152,7 +152,7 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volu
 针对不同工作场景提供一键调优：
 
 ```bash
-# AI Coding Agent 极致性能预设：
+# AI Coding Agent 性能预设：
 # 解除幽灵进程 (上限设为最大)、强锁 120Hz、开启 0.5x 极速动画、限制 PowerKeeper、加入 Doze 白名单
 bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh preset performance
 
@@ -168,7 +168,7 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh pres
 
 ---
 
-### 1.8 UI 交互模拟与跨容器无缝截图
+### 1.8 UI 交互模拟与跨容器截图
 通过命令行自动化操作宿主界面并回传图片：
 
 ```bash
@@ -232,7 +232,7 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh list
 
 完整取证分析详见 [`references/bionic-namespace-and-settings-pitfalls.md`](references/bionic-namespace-and-settings-pitfalls.md)。
 
-| 踩坑场景 | 错误现象 | 底层根因 | 生产级解决方案 |
+| 踩坑场景 | 错误现象 | 底层根因 | 解决方案 |
 | :--- | :--- | :--- | :--- |
 | **动态链接器缺失** | `cannot execute: required file not found` | Android ELF 依赖 `/system/bin/linker64` | `nsenter -t 1 -m` 映射宿主原生 `/system` |
 | **Magisk 桩文件冲突** | `CANNOT LINK EXECUTABLE: libutils.so >= 0` | Magisk tmpfs 覆写 `/system/lib64` 为 0 字节桩 | 挂载穿透直接访问真实系统库 |
@@ -244,7 +244,7 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh list
 
 ---
 
-## 3. 核心键值速查矩阵
+## 3. 核心键值速查表
 
 | 键名 | 所属表 | 常用推荐值 | 说明 |
 | :--- | :--- | :--- | :--- |

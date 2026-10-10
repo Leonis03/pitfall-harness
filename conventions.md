@@ -71,14 +71,22 @@
   `privacy-gate.sh` **skips** it -- so it can hold real paths and account names without
   turning the gate red every day. `tmp/.gitkeep` is tracked, so a fresh clone still has the
   directory.
+- **Half-finished work and its to-do list go in `drafts/`, which is private-only.** It is
+  tracked in the private repo (so it follows you between machines and is backed up) but
+  **never exported**: `tools/publish.sh` deletes it from the export before the privacy gate
+  runs and refuses to continue if it is still there, and `privacy-gate.sh` skips it like
+  `tmp/`. Do not link to it from any other document: the link would dangle in the public
+  repos. Credentials still never go in. To publish a draft, move it into the directory it
+  belongs to, redact it (see [`redaction.md`](redaction.md)), and run the gate. `drafts/README.md`
+  is the index and holds the to-do list.
 - **Run `bash tools/privacy-gate.sh` before publishing.** It only covers known shapes; passing
   is not the same as safe -- `wsl/storage/forensics/` is raw forensic output and has to be read by hand.
   The account names are **not in the script** (putting them there would make the script itself
   the leak); they are read at run time from `tools/.privacy-names`, which is gitignored.
 - **Publish with `bash tools/publish.sh`, never a hand-rolled `cp -r`.** This repo is a
   **private primary plus two public snapshots**:
-  [`vibe-pitfalls-notes`](https://github.com/Leonis03/vibe-pitfalls-notes) gets the whole tree,
-  [`vibe-coding-pitfalls-skills`](https://github.com/Leonis03/vibe-coding-pitfalls-skills) gets
+  [`pitfall-harness`](https://github.com/Leonis03/pitfall-harness) gets the whole tree,
+  [`pitfall-harness-skills`](https://github.com/Leonis03/pitfall-harness-skills) gets
   only the skills (`agent/skills/<name>/` -> `skills/<name>/`, without the third-party
   `find-skills`, plus a README the script generates from each skill's frontmatter). Each public
   repo has its own `.git`; keep a clone of each anywhere you like:

@@ -54,8 +54,8 @@ The two directions:
   (gitignored)           tmp/. Covers known shapes only: passing != safe
        | pass
        v
-  git archive origin/main | tar -x   whole tree -> vibe-pitfalls-notes
-                                     agent/skills -> vibe-coding-pitfalls-skills
+  git archive origin/main | tar -x   whole tree -> pitfall-harness
+                                     agent/skills -> pitfall-harness-skills
        +-- not cp -r: that copies the local private files gitignore was hiding
 
 [DEPLOYING]  repo --> this machine (Fedora / Ubuntu / a rented GPU box)

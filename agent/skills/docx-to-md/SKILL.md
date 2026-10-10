@@ -62,7 +62,7 @@ When handling complex MathType equations, piecewise brackets, or matrices in `.d
 [Clean, Publication-Grade output.md]
 ```
 
-### 2.1 Why LibreOffice + PyMuPDF is the Gold Standard
+### 2.1 Why LibreOffice + PyMuPDF
 1. **Linux Font Compatibility**: Directly extracting `.wmf` fails on Linux/Web environments and missing fonts (`MT Extra`, `Euclid`, `Symbol`) result in tofu/square replacement glyphs.
 2. **Vector Integrity**: LibreOffice embeds math symbols as vector paths into PDF. PyMuPDF renders them at 300 DPI (`Matrix(3.0, 3.0)`), producing sharp images where multimodal vision models achieve near-100% recognition accuracy.
 

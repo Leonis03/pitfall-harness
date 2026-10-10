@@ -1,6 +1,6 @@
 ---
 name: deepln-setup
-description: Connect to and provision a rented DeepLN cloud GPU node over SSH -- any card, not just the Tesla P4. Use when setting up or repairing a PyTorch CUDA environment on a rented box, when a new rental needs the `deepln` SSH alias repointed, when torch/torchvision/numpy are missing or mismatched for the card (silent CPU fallback), or when installing via SJTU/Tsinghua mirrors. Also covers moving data between rentals -- the CPU data instance, restoring a saved /data share link (tar.zst), and fast in-cluster rsync by pod IP with agent forwarding. Handles the rental lifecycle, conda detection, non-interactive activation, cgroup capacity limits, and fast mirror selection. Carries verified version pins for the Tesla P4 (sm_61, Pascal).
+description: Connect to and provision a rented DeepLN cloud GPU node over SSH -- any card, not just the Tesla P4. Use when setting up or repairing a PyTorch CUDA environment on a rented box, when a new rental needs the `deepln` SSH alias repointed, when torch/torchvision/numpy are missing or mismatched for the card (silent CPU fallback), or when installing via SJTU/Tsinghua mirrors. Also covers the GPU-less instances (the 1-core data box and the 24-core compute box), a uv Python 3.12 env for CPU-only jobs, and moving data between rentals -- restoring a saved /data share link (tar.zst) and fast in-cluster rsync by pod IP with agent forwarding. Handles the rental lifecycle, conda detection, non-interactive activation, cgroup capacity limits, and fast mirror selection. Carries verified version pins for the Tesla P4 (sm_61, Pascal).
 allowed-tools: Bash Read
 argument-hint: "[ssh -p PORT user@host | ssh deepln]"
 arguments: [ssh]
@@ -67,6 +67,7 @@ Host deepln
 - **Direct Alias Usage**: You can connect directly via `ssh deepln` once configured.
 - **Instance Rental Lifecycle**: DeepLN creates dynamic domain names and ports on each rental. Whenever a new instance is launched (e.g. `ssh -p <ssh-port> root@<instance>.deepln.com`), update `HostName` and `Port` under `Host deepln` in `~/.ssh/config` after verifying the environment. Subsequent commands and automation should use `ssh deepln`.
 - **Never add a `*.deepln.com` wildcard to that `Host` line.** A wildcard makes the stanza match every deepln hostname you type while `HostName` still forces the one hardcoded below it, so `ssh -p NEW root@new-instance.deepln.com` silently connects to the *old* box. Symptoms look like a dead rental or a wiped environment. Keep the stanza to the bare alias.
+- **A stopped or re-rented instance's address can answer with another host key.** `ssh` then refuses with `REMOTE HOST IDENTIFICATION HAS CHANGED` (seen 2026-10-04 on a data instance the user had shut down from the console). It is expected after a shutdown or a re-rental, but do not delete the old key on reflex: confirm in the console that the instance really was stopped or replaced, then run `ssh-keygen -R '[<instance-domain>.deepln.com]:<ssh-port>'` and connect again (after repointing the alias if it is a new rental).
 
 **Use the bundled script instead of hand-editing** — it parses the rental string, verifies the box is reachable and really is a P4 with a working torch env, backs up `~/.ssh/config`, and rewrites only `HostName`/`Port`/`User` inside the `Host deepln` stanza (other hosts untouched). It refuses to write if verification fails, so the alias never points at a dead or wrong machine.
 
@@ -119,7 +120,7 @@ Rest of the node: Xeon E5-2683 v4 @ 2.10GHz, Tesla P4 8192 MiB (sm_61, driver 55
 - **The RAM lie is the dangerous one.** Sizing a job against 125 GB gets it OOM-killed at
   18 GiB, usually leaving nothing but exit code 137. Check with `dmesg | grep -i oom`.
 - **Re-measure on every new rental.** A sibling node in the same fleet reported `nproc`
-  256 while granting only 24 cores.
+  256 while granting only 24 cores -- a CPU compute instance, see section 5.1.
 - **The CPU data instance is the extreme case** (section 5, measured 2026-09-27): `nproc` 80
   and `MemTotal` 251 GB, but `cpu.max 100000 100000` = **1 core** and `memory.max` =
   **2 GiB** -- overstated 80x and 125x. `/` is only 2 GB, `/data` 400 GB. Size anything you
@@ -221,13 +222,26 @@ Expect `cap (6, 1)` for the P4 and `OK`. See the `gpu-cuda-checks` skill for run
 Measured 2026-09-27 with a CPU "data upload" instance next to a Tesla P4 rental in the same
 cluster.
 
-### 5.1 The CPU data instance
+### 5.1 The CPU instances: data box and compute box
 
-No GPU (`nvidia-smi` is missing), system Python 3.10, no conda, no `bc`; cloud-drive tools
+DeepLN rents two kinds of GPU-less instance, and nothing in the rental string tells them
+apart -- read the cgroup quota (section 0) before sizing anything:
+
+| | data instance (measured 2026-09-27) | compute instance (measured 2026-10-04) |
+| :--- | :--- | :--- |
+| cgroup CPU / RAM | 1 core / 2 GiB | **24 cores / 47 GiB** |
+| `nproc` says | 80 | 256 |
+| `/data` | 400 G | 60 G |
+| Python | system 3.10, no conda | conda in `/data/miniconda`, env `default` (Python 3.10.15, numpy 1.26.4), no torch |
+| Use | transfer and storage | CPU-bound jobs (section 6): 2.7x the cores of a P4 node, and the GPU box stays free for training |
+
+**Data instance.** No GPU (`nvidia-smi` is missing), system Python 3.10, no conda, no `bc`; cloud-drive tools
 come preinstalled under `/data` (`.bypy`, `.tickstep/adrive`, `alistdata`). Capacity is
 1 core / 2 GiB whatever `nproc` says (section 0). It is a transfer box, not a compute box.
 
-Give it its **own stanza** instead of repointing `deepln`, with `ForwardAgent yes` for 5.3:
+Give each instance its **own stanza**, named by role, instead of repointing `deepln` (for
+example `deepln-data` and `deepln-cpu` next to the GPU alias), with `ForwardAgent yes` on the
+ones that pull data in 5.3:
 
 ```ssh-config
 Host deepln-data
@@ -317,6 +331,11 @@ writing to the wrong place.
 - **Measured**: a 160 MB run dir in 1.1 s (145 MB/s), a 1.4 GB tar in 6.5 s (204 MB/s), md5
   verified. The same box from a home uplink: ~1.9 MB/s. **Move bulk data server to server;
   upload from the laptop only code, text and small artifacts.**
+- **Measured again 2026-10-04**: 15.9 GB in 2242 files (a project with its datasets and run
+  outputs), pulled from a P4 box by two receivers at once -- 76 s on a data instance and 91 s
+  on a compute instance, about 209 and 175 MB/s. The file lists (path and size, hashed) and the
+  md5 of sampled files matched on all three boxes. If you check this from a local script, give
+  every `ssh` `-n` (`tools/remote-ssh.md` section 8).
 - Agent forwarding only works while a local session is open. An unattended sync (e.g. cron
   on the data box) needs its own key on the data instance, added to the GPU box's
   `authorized_keys` -- not set up or tested here.
@@ -342,3 +361,40 @@ time here.
   Push multi-line remote logic as a file (`ssh host 'cat > run.sh' <<'EOF' ... EOF`, then
   `ssh host bash run.sh`) instead of nesting quotes.
 - **No `bc` on the data image**: use shell arithmetic, `$(( ... ))`.
+
+## 6. CPU-only jobs: uv and Python 3.12 on a compute instance
+
+Jobs that need no torch (replays, evaluation, onnxruntime inference) run better on a compute
+instance (section 5.1) with a Python of their own than inside the GPU box's pinned env.
+Measured 2026-10-04 on a pure-Python replay: Python 3.12 was 1.4x faster than the image's 3.10,
+numpy 2.5.3 against 1.26.4 made no difference, and the outputs were byte-identical
+(`tools/python/README.md` section 3).
+
+Keep everything uv owns under `/data`, the only path that survives a rental:
+
+```bash
+export UV_PYTHON_INSTALL_DIR=/data/uv/python UV_CACHE_DIR=/data/uv/cache PATH=/data/uv/bin:$PATH
+/data/miniconda/envs/<env>/bin/pip install uv -i https://pypi.tuna.tsinghua.edu.cn/simple   # uv into the image's conda env (under /data)
+mkdir -p /data/uv/bin && ln -sf /data/miniconda/envs/<env>/bin/uv /data/uv/bin/uv
+uv python install 3.12                 # python-build-standalone from GitHub: fast from the cluster on 2026-10-04
+uv venv --python 3.12 /data/uv/venvs/<name>
+VIRTUAL_ENV=/data/uv/venvs/<name> uv pip install -r requirements-cpu.txt
+```
+
+- **Point uv at the TUNA mirror in its user config, and rewrite it on every setup.**
+  `~/.config` is not under `/data`, so the file is gone after a re-rental and `uv pip install`
+  quietly goes back to PyPI. A per-command `UV_INDEX_URL=...` covers only that one command.
+
+  ```bash
+  mkdir -p ~/.config/uv
+  printf '%s\n' '[[index]]' 'url = "https://pypi.tuna.tsinghua.edu.cn/simple"' 'default = true' > ~/.config/uv/uv.toml
+  uv pip install --dry-run -p /data/uv/venvs/<name> requests -v 2>&1 | grep -o 'https://[a-z.]*/simple' | sort -u
+  ```
+
+- **Non-interactive `ssh` activates nothing** (section 1): call the venv's interpreter by path
+  (`/data/uv/venvs/<name>/bin/python`) or `source /data/uv/venvs/<name>/bin/activate` inside
+  the remote command.
+- **Keep the image's conda env** for tools that need Python <= 3.11 (CANN 8.0, for one, supports
+  3.7-3.11). Installing `onnxruntime` into it with `pip` left its numpy 1.26.4 alone.
+- **Before trusting numbers from the new env, compare outputs** with the old one on the same job
+  (hash the result arrays). Do it again after every version bump.

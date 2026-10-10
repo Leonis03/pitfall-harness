@@ -1,10 +1,10 @@
-# PTY 伪终端与 /proc/self/exe 机制深剖
+# PTY 伪终端与 /proc/self/exe 机制分析
 
 在 Android chroot 容器中运行 AI 编码助手（如 Antigravity CLI、Claude Code）或自动化构建工具时，常会遇到两类与底层系统调用紧密相关的典型报错：
 1. `failed to get executable path: readlink /proc/self/exe: no such file or directory`
 2. `failed to create PTY: open /dev/ptmx: no such device`
 
-本篇深入剖析其内核机理，说明为什么这两项是容器内 CLI 生态正常运转的绝对底线，并介绍基于独立 `tmpfs` 的 `/dev` 架构方案。
+本篇说明其内核机理，以及容器内 CLI 工具正常运行为什么需要这两项，并介绍基于独立 `tmpfs` 的 `/dev` 架构方案。
 
 ---
 
@@ -119,7 +119,7 @@ exec 3>&-
 ## 5. Agent 运行器的自愈死锁现象
 
 ### 5.1 死锁还原
-在 AI 辅助运维场景下，经常出现以下戏剧性的一幕：
+在 AI 辅助运维场景下，常见情形如下：
 1. Agent 已经分析出容器内缺少 `/dev/pts` 挂载。
 2. Agent 计划通过调用自身工具库中的 `run_command` 执行 `mount -t devpts ...` 来完成修复。
 3. 工具调用直接失败，报错依然是：

@@ -1,4 +1,4 @@
-# vibe-pitfalls-notes
+# pitfall-harness
 
 *English · [中文](README.zh.md)*
 
@@ -6,7 +6,7 @@ Pitfalls met while setting up machines for AI coding agents -- each with its sym
 cause, and how that cause was proven. The configs are the fish; the debugging method is the
 rod. It all comes from one person's several machines, driven mainly by Claude Code and the
 Antigravity CLI, with networking through a local proxy. The skills are also published on their
-own, ready to install: [vibe-coding-pitfalls-skills](https://github.com/Leonis03/vibe-coding-pitfalls-skills).
+own, ready to install: [pitfall-harness-skills](https://github.com/Leonis03/pitfall-harness-skills).
 
 ---
 
@@ -113,6 +113,7 @@ check.
 | [`setup/`](wsl/setup/) | **The rebuild guide.** `.wslconfig`, `/etc/wsl.conf`, fstab, the binfmt and `/mnt/wsl` guards, apt mirrors, toolchain. `files/` holds the WSL-only originals |
 | [`distro-differences.md`](wsl/distro-differences.md) | How Ubuntu 24.04 and Fedora 44 differ |
 | [`gui-ime/`](wsl/gui-ime/) | WSLg GUI apps and the fcitx5 Chinese input method |
+| [`uninstall-cleanup.md`](wsl/uninstall-cleanup.md) | Removing one distro or WSL entirely, residue, verification, reinstall |
 | [`storage/`](wsl/storage/) | Moving a distro off the system drive, pnpm/npm disk cleanup; `forensics/` holds the raw evidence from one `E_ACCESSDENIED` failure |
 
 The core idea is **`appendWindowsPath=false` plus explicit function bridging**: do not inject
@@ -123,7 +124,9 @@ shell functions.
 
 [`terminal/`](windows/terminal/) (Windows Terminal config) ·
 [`powershell/`](windows/powershell/) (PowerShell 7 profile, PSReadLine, closing every File
-Explorer window without killing the shell) ·
+Explorer window without killing the shell, closing or killing Typora) ·
+[`ime-keyboard/`](windows/ime-keyboard/) (stray keyboard layouts after uninstalling languages,
+first-Pinyin-letter-leaks-as-Latin checklist) ·
 [`context-menu/`](windows/context-menu/) (diagnosing and trimming context-menu entries) ·
 [`windows-update/`](windows/windows-update/) (pin feature updates to 24H2 while keeping
 updates visible)
@@ -170,12 +173,18 @@ Entries that took real time to diagnose and whose conclusion is not obvious.
 | **`filter-repo` silently destroys changes** | Uncommitted modifications to tracked files vanish after a history rewrite, with no warning | [`git-github/email-scrub-runbook.md`](git-github/email-scrub-runbook.md) section 2 |
 | **`no_proxy` wildcards do not work** | A request to a local service goes through the proxy anyway and returns an empty 502 that looks like "the request failed" | [`tools/python/`](tools/python/) section 1 |
 | **f-string quoting rules** | `invalid syntax`, and 3.10 behaves differently from 3.12 | [`tools/python/`](tools/python/) section 2 |
+| **numpy 2 does not speed up pure-Python loops** | Upgrading numpy for speed changes nothing when the hot loop is Python; moving from 3.10 to 3.12 gave 1.4x on the same job, outputs byte-identical | [`tools/python/`](tools/python/) section 3 |
+| **`uv run` hangs without a word** | No output, no error, minutes, on a command that normally takes seconds: a network check while resolving. `--offline` when everything is cached | [`tools/python/`](tools/python/) section 4 |
 | **`pkill -f` kills itself** | Returns 255, which looks like the SSH connection dropped | [`tools/remote-ssh.md`](tools/remote-ssh.md) section 2 |
 | **Setting thread counts too late in Python** | BLAS is already initialised; 48 workers spawn 3077 threads and run 227x slower | [`tools/remote-ssh.md`](tools/remote-ssh.md) section 3 |
+| **`ssh` in a heredoc script swallows the rest of it** | Every command after the first `ssh` silently does not run, exit 0: `ssh` forwards stdin, and in a heredoc stdin is the script. Use `ssh -n` | [`tools/remote-ssh.md`](tools/remote-ssh.md) section 8 |
+| **`set -e` plus `\| grep` stops on no match** | A script halts right after a command that succeeded: the filtering `grep` found nothing and returned 1 | [`tools/remote-ssh.md`](tools/remote-ssh.md) section 9 |
+| **An `rsync` pull overwrites newer local files** | A report regenerated locally quietly reverts to the remote's older copy. Preview with `-n --itemize-changes`; `--ignore-existing` or `--update` | [`tools/remote-ssh.md`](tools/remote-ssh.md) section 10 |
 | **Drive-letter paths never exist in WSL** | `C:/Windows/Fonts/...` finds no font; you get silent tofu squares and no error | [`agent/skills/linux-cjk-font/`](agent/skills/linux-cjk-font/) |
 | **A hardcoded Windows account name expires** | Tofu squares again, silently: `/mnt/c/Users/<the old machine's account>/...` does not exist here. WSL has no `%USERPROFILE%`; use `glob("/mnt/c/Users/*/...")` | [`agent/skills/README.md`](agent/skills/README.md) |
 | **drvfs case-insensitivity hides a hardcoded account name** | Nastier than the row above: the Windows account name and `$USER` here differ only in case, so the string comparison is false while `/mnt/c/Users/$USER/...` still stats successfully. "Build the Windows home directory from `$USER`" is therefore **always passing** on this machine, and only fails -- silently -- on a machine where the names really differ | [`wsl/setup/`](wsl/setup/) FAQ |
 | **zsh aborts the whole file on an unmatched glob in a `for` list** | One `~/.shell_common` is shared by bash and zsh; bash passes the literal through, zsh exits with `no matches found` and everything after it never runs | [`wsl/setup/`](wsl/setup/) FAQ |
+| **`echo ======` fails in zsh** | `zsh: = not found`, and the rest of the line does not run: a word starting with `=` is expanded to a command path. Quote it | [`shell/`](shell/) |
 | **Non-interactive bash has no equivalent of `.zshenv`** | The interop functions reach scripts and agents on the zsh side but not on the bash side: `bash -c` and `#!/bin/bash` read neither startup file. The verification checklist historically said `bash -ic`, and the `-i` happened to paper over the gap. The way out is `BASH_ENV` | [`wsl/setup/`](wsl/setup/) checklist item 3 |
 | **`.gitattributes` does not reach inside a zip** | The entire file is reported as rewritten and the real change drowns in a fake diff | [`git-github/crlf-and-diffing.md`](git-github/crlf-and-diffing.md) |
 | **`/reg:64` redirection** | A registry key "cannot be found" even though it plainly exists | [`agent/skills/wsl-windows-command/`](agent/skills/wsl-windows-command/) |
@@ -194,6 +203,9 @@ Entries that took real time to diagnose and whose conclusion is not obvious.
 | **A redaction placeholder borrowed `$HOME`** | One token meant both "a home directory awaiting substitution" and a genuine shell variable. Rendering it hardcoded the local path into `set-deepln.sh`, so the script was wrong everywhere on a rented GPU box. The test should be "will a shell expand this", not what kind of file it is | [`agent/skills/README.md`](agent/skills/README.md) |
 | **DeepLN instances cannot reach each other's public domain** | `ssh`/`rsync` from one rental to another's `<instance>.deepln.com:<port>` times out, in both directions. Inside the cluster use the pod IPv4 (`hostname -I`) on port 22, with `ssh -A` to borrow the local key: 145-204 MB/s measured, about 100x a home uplink | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) section 5.3 |
 | **A DeepLN saved-data snapshot has an extra `data/` level** | The usual `tar xvf - -C /data/coding` lands files in `/data/coding/data/coding/...`: the archive is the whole `/data`. Add one space after `-C /`, making it `-C / data/coding`: only the project, no nesting. Extracting all of it at `/` overwrites the new instance's own alist config | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) section 5.2 |
+| **DeepLN CPU instances come in two sizes** | A GPU-less rental is either a 1-core / 2 GiB transfer box or a 24-core / 47 GiB compute box, and `nproc` (80 or 256) tells you neither. Sized for the wrong one, a job is either starved or wastes the box. Read the cgroup quota | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) section 5.1 |
+| **uv settings vanish with the rental** | After a re-rental `uv pip install` is slow again: the TUNA index lived in `~/.config/uv/uv.toml`, which is not under `/data`. Keep uv's Python, cache and venvs under `/data` and rewrite the config in the setup script | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) section 6 |
+| **A stopped DeepLN instance answers with another host key** | `REMOTE HOST IDENTIFICATION HAS CHANGED` after the instance was shut down or re-rented. Expected then, but confirm in the console before `ssh-keygen -R` -- never accept it on reflex | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) section 0 |
 | **A `: ` in a skill's `description` makes strict parsers drop the skill silently** | Fine in Claude Code, but `npx skills add --list` shows two fewer skills and no error. An unquoted YAML value may not contain `: `; Claude Code tolerates it, strict parsers skip the skill. Use ` -- ` or quote the value | [`agent/skills/README.md`](agent/skills/README.md) conventions |
 | **A wrong jq path silently yields 0 rows** | Using `.web.results[]` against `bx news` exits 0 with no error and looks like "no results for this topic" | [`agent/brave-search/bx-cli.md`](agent/brave-search/bx-cli.md) section 6 |
 | **A search-gating skill became a fixed tax** | `CLAUDE.md` is resident every session while a skill body loads on demand; making a 2.2k skill a prerequisite for `bx` inverts the cost structure | [`agent/claude-code/README.md`](agent/claude-code/README.md) |
@@ -212,8 +224,9 @@ Entries that took real time to diagnose and whose conclusion is not obvious.
 | **Android Bionic Linker namespace fracture and Magisk tmpfs stub collision** | Calling host `/system/bin/settings` inside Debian chroot fails with `cannot execute` or dynamic linker crash (`file offset for libutils.so >= file size: 0 >= 0`). Magisk tmpfs overrides libraries with 0-byte stubs and the linker lacks container runtime topology; execute via targeted Mount Namespace penetration (`nsenter -t 1 -m`) | [`agent/skills/android-miui-settings/`](agent/skills/android-miui-settings/) |
 | **MIUI proprietary refresh rate vote overrides AOSP settings** | Setting `system peak_refresh_rate` to 120Hz fails to lock high refresh rate; MIUI inserts a `PRIORITY_MIUI_REFRESH_RATE` vote in `DisplayModeDirector` that drops FPS when idling or typing. Link both `secure miui_refresh_rate 120` and `system is_smart_fps 0` | [`agent/skills/android-miui-settings/`](agent/skills/android-miui-settings/) |
 | **`chsh` does not take effect in desktop terminal** | Shell changed via `chsh` but terminal restarts still spawn Bash; `gnome-terminal-server` caches PAM variables across windows | [`linux-desktop/`](linux-desktop/) section 2.1 |
+| **`Connection refused` while the proxy is up (Windows `bx`)** | Same `socks5h` root cause as the Clash row below, but on Windows the variable lives in the user environment and `jq` is also missing, so two unrelated errors look like one network failure. `curl --noproxy` -> `000` vs via proxy -> `301` tells them apart; a `bx.cmd` / `bx` wrapper around `bx-bin.exe` fixes it | [`agent/brave-search/bx-cli.md`](agent/brave-search/bx-cli.md) section 3 |
 | **Clash desktop proxy misses CLI traffic** | Browser proxies fine while CLI commands time out; `bx` hitting `socks5h` exits 5 | [`linux-desktop/`](linux-desktop/) section 2.2 |
-| **Linux Mint 22 mirror targeting mismatch** | Blindly editing `ubuntu.sources` drops Mint's official desktop package repositories | [`linux-desktop/`](linux-desktop/) section 2.3 |
+| **Linux Mint 22 mirror mismatch & update timeout** | Blindly editing `ubuntu.sources` drops Mint repos; overseas mirrors throttle at ~300 kB/s triggering `mintupdate` TCP timeouts. Dual-track TUNA mirrors yield 16x speedup | [`linux-desktop/`](linux-desktop/) section 2.3 |
 | **Installers pollute the 4-layer shell split** | `pnpm setup` and nvm appending rc files break the single source of truth | [`linux-desktop/`](linux-desktop/) section 2.4 |
 | **CLI paste shortcut lacks clipboard backend** | Pressing Ctrl+V/Alt+V in CLI reports `no supported clipboard tool`; native desktop requires `xclip`/`wl-clipboard` | [`linux-desktop/`](linux-desktop/) section 2.5 |
 | **GNOME Terminal silently drops OSC 52 clipboard** | `/copy` reports success but system clipboard stays empty; VTE lacks OSC 52 write support, recommend Ghostty | [`linux-desktop/`](linux-desktop/) section 2.6 |
@@ -222,6 +235,14 @@ Entries that took real time to diagnose and whose conclusion is not obvious.
 | **Fcitx 5 default profile missing Pinyin** | After fresh Fcitx 5 install hotkeys do nothing; default profile only contains `keyboard-us`, add `pinyin` | [`linux-desktop/`](linux-desktop/) section 2.9 |
 | **Ghostty defaults Ctrl+Enter to fullscreen** | Multi-line input in CLI/editors accidentally triggers fullscreen; unbind via `ctrl+enter=unbind` and rebind F11 | [`linux-desktop/`](linux-desktop/) section 2.10 |
 | **Nemo file manager lacks Ghostty context menu** | Cannot open Ghostty directly in selected folders; configure Nemo Action distinguishing item selection from directory background | [`linux-desktop/`](linux-desktop/) section 2.11 |
+| **AI agent `sudo` blocks forever waiting for a password** | Non-interactive subprocesses have no TTY to receive the `sudo` password prompt; the command hangs indefinitely. Grant `NOPASSWD: ALL` once with a single manual password entry | [`linux-desktop/`](linux-desktop/) section 2.12 |
+| **pnpm 12 global install spawns interactive build-approval UI; Node must be pre-installed** | `pnpm add -g` shows a checkbox prompt that AI agents cannot answer; even with `--allow-build`, postinstall fails with `node: not found` (exit 127) if nvm has not been sourced. Install Node via nvm first, then pass `--allow-build=<exact-pkg-name>` per package; the optional global pass-through is section 2.16 | [`linux-desktop/`](linux-desktop/) section 2.13 |
+| **Fcitx 5 session env missing in GUI apps (`run_im none`)** | Terminal types Chinese fine while WPS/WeChat/GUI apps cannot activate IME; `~/.xinputrc` set to `none` suppresses Xsession IM exports. Set `im-config -n fcitx5` and persist in `/etc/environment` & `~/.xprofile` | [`linux-desktop/gui-and-ime.md`](linux-desktop/gui-and-ime.md) section 1.1 |
+| **WPS Office Linux drops IME (Qt QPlatformInputContext fallback)** | WPS Office cannot type Chinese; missing `QT_IM_MODULE=fcitx` makes bundled Qt fall back to `compose` permanently. Inject IM vars in `/usr/bin/wps` wrappers and restart | [`linux-desktop/gui-and-ime.md`](linux-desktop/gui-and-ime.md) section 1.2 |
+| **Fcitx 5 AltTriggerKeys hijacks Left Shift from Rime `commit_code`** | Left Shift forces Chinese candidate commitment instead of raw Pinyin letters; Fcitx 5 `AltTriggerKeys=Shift_L` intercepts Shift before Rime engine. Clear `AltTriggerKeys` in `~/.config/fcitx5/config` | [`linux-desktop/gui-and-ime.md`](linux-desktop/gui-and-ime.md) section 1.4 |
+| **Fontconfig fallback drops into Traditional Chinese glyphs** | Priority 65 `Droid Sans Fallback` runs before Noto CJK (priority 70), producing Taiwanese/archaic glyphs. Normalize `zh-Hans` and prepend Noto Sans/Serif SC | [`linux-desktop/`](linux-desktop/) section 2.14 |
+| **Fcitx 5 Rime candidate panel hijacks Left/Right arrow keys** | Pressing Left/Right in linear layout navigates candidates instead of moving cursor in pinyin buffer; unbind selector linear bindings to restore in-place editing | [`linux-desktop/`](linux-desktop/) section 2.15 · [`linux-desktop/gui-and-ime.md`](linux-desktop/gui-and-ime.md) |
+| **pnpm 12 blocks build scripts and 24h fresh package releases** | `pnpm add -g` blocks with interactive `approve-builds` prompt and delays packages published <24h (`minimumReleaseAge`). **Optional**, for a machine used only for personal Vibe Coding: enable `dangerouslyAllowAllBuilds: true` and `minimumReleaseAge: 0`; otherwise allow builds per package with `pnpm add -g --allow-build=<pkg>` | [`linux-desktop/`](linux-desktop/) section 2.16 |
 
 ---
 

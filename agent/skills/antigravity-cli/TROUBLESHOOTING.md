@@ -77,6 +77,59 @@ Auth mechanism: token stored at `~/.gemini/antigravity-cli/antigravity-oauth-tok
 | `Eligibility check failed: ... EOF` | Transient proxy/endpoint jitter — **just retry** |
 | settings.json changed key order after a run | agy rewrites the file on start; content is kept |
 
+## Bulk read-only review jobs (Windows host, agy 1.2.14, 2026-10-02)
+
+Seen while having agy read 88 Markdown files and report which passages sound machine-written.
+
+- **agy cannot find files for you without a `command` permission.** Listing, globbing and
+  searching go through a shell command; headless soft-denies it and `agy -p` exits **0** with
+  an empty reply and a `jetski: no output produced` line on stderr. Give it the file list in the
+  prompt (absolute paths) and tell it to use only its file-reading tool (`view_file`, covered by
+  `read_file`). Do not reach for `--dangerously-skip-permissions` on a read-only job.
+- **Do not put 70+ files in one conversation.** After about 150 steps (73 files read) agy
+  compacts its context; every later `agent_response` then had `output_tokens: 0`, each followed by
+  an `error_message`, and it kept retrying without ever printing a reply. All findings from the
+  reading phase were lost. Batches of 16-23 files finished normally.
+- **`-p -` (prompt on stdin) was unreliable**: one run answered with a greeting as if the prompt
+  were empty, another tried to run a command. `agy -p "$(cat prompt.md)"` worked (a 6 KB prompt
+  is far below the Windows command-line limit of about 32 KB).
+- **`error: Error: empty prompt`** means the prompt file was empty or missing. Check it before
+  launching: `wc -c`, `head`, `tail`, and count the path lines.
+- **Build Windows paths in code, not in shell text.** Backslashes in a quoted heredoc, `sed` or
+  `awk` replacement got collapsed (`D:\SQLData\vibe-pitfalls-notes-private\x` came out as
+  `D:SQLDataibe-pitfalls-notes-private\x`), so the agent was handed paths that do not exist.
+  Write the prompt with a small script that joins the parts with `chr(92)` or `pathlib`, then
+  verify that the first and last paths exist.
+- **`--output-format stream-json` shows progress, not the reply, while the job runs.** The events
+  carry the tool name, the path (`AbsolutePath`) and token usage. Count `view_file` steps in state
+  `DONE` to see how many files were read. Redirect stdout to a file and read it with a short script
+  while the job is still running.
+- **A growing output file is not a finished one.** In text mode the file grew over several
+  minutes (1.3 KB, 4.7 KB, 8.9 KB). Decide from the process (`tasklist`) and the exit status, not
+  from the size. Once a report contained the same answer three times, each a little different:
+  use the last one.
+- **Trust the quotes, not the line numbers.** Quoted text was found verbatim in the files every
+  time (46 of 46 checked with `grep -F`), but several `path:line` references pointed at the wrong
+  line. Re-locate with the quote.
+- **Parallel runs work.** Two `agy -p` processes started side by side without interfering.
+- **Killing the parent loop does not stop agy.** `taskkill` on the `sh` running a batch loop
+  leaves the current `agy.exe` running; useful for letting one batch finish while taking over the
+  rest by hand.
+
+- **`INTERNAL (code 500)` with exit 3 can be tied to the input.** One 14-file batch failed twice
+  with `retryable: false`; splitting it in halves found one half that always failed and one that
+  succeeded, and a further split narrowed it to two ordinary Markdown files (no odd bytes, longest
+  line about 1,000 characters). The cause was never found, so do not assume it is size or content:
+  bisect the batch, skip the file, and review it by hand.
+- **If even `hi` hangs on `Loading...` in both the IDE and the CLI, suspect the service.** Later in
+  the same session every request stalled, interactive ones included; nothing on the machine had changed.
+  Stop launching jobs and retry later.
+- **Driving the interactive UI from Windows works through WSL's tmux.** `tmux new-session -d -s agy
+  -c <dir> agy`, `tmux send-keys -t agy -l "<one-line prompt>"` then `Enter`, and
+  `tmux capture-pane -p` returned the trust prompt, the main screen and the working spinner. Each new
+  workspace first shows "Do you trust the contents of this project?"; Enter accepts it, so decide
+  before sending. `tmux kill-session` ended with "server exited unexpectedly" once; harmless.
+
 ## Appendix: verified facts on this machine (2026-09-26)
 
 - `agy` at `$HOME/.local/bin/agy`, v1.2.11, native Linux ELF.

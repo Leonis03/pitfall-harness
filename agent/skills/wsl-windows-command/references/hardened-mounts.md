@@ -16,7 +16,7 @@ In hardened WSL environments, Windows drives (`/mnt/c`, `/mnt/d`, etc.) are moun
 options = "metadata,uid=1000,gid=1000,umask=22,ro"
 ```
 
-This prevents WSL processes, compromised scripts, or autonomous agents from accidentally or maliciously modifying Windows host files.
+This blocks writes made through the `/mnt/<drive>` paths, such as a script with a wrong path. It does not stop writes made through interop (see the note above).
 
 ---
 
@@ -50,7 +50,7 @@ Processes launched on the Windows side run under the Windows host user account a
 "/mnt/c/Program Files/PowerShell/7/pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "Copy-Item -Path '\\wsl.localhost\Ubuntu\home\<user>\data.csv' -Destination 'C:\Users\<user>\Desktop\'" < /dev/null
 ```
 
-> **Note**: Reading through `/mnt/c` still works perfectly and at full speed from Linux.
+> **Note**: Reading through `/mnt/c` is unaffected from Linux.
 
 ---
 

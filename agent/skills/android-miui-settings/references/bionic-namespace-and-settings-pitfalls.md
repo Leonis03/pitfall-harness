@@ -2,7 +2,7 @@
 
 在 Android Root Debian (chroot) 环境下，运行 AI Agent (Claude Code / Antigravity CLI `agy`) 或开发者运维脚本时，经常需要读取或修改 Android 宿主系统的系统设置（如切换私人 DNS / DoT、开关高刷 120Hz、彻底解除 Android 12/13/14 幽灵进程查杀、收紧 PowerKeeper 保活、读取设备配置）。
 
-然而，由于 Android 系统底层的 Bionic libc 动态链接器、Linker Namespace 隔离策略、Magisk tmpfs 挂载覆写、Linux Mount Namespace 隔离以及 MIUI 专有框架调度机制，直接调用宿主系统工具会连续遭遇八大隐蔽陷阱。本篇完整复盘探索过程中的踩坑实录、底层归因与最终生产级穿透方案。
+然而，由于 Android 系统底层的 Bionic libc 动态链接器、Linker Namespace 隔离策略、Magisk tmpfs 挂载覆写、Linux Mount Namespace 隔离以及 MIUI 专有框架调度机制，直接调用宿主系统工具会连续遇到一系列问题。本篇记录排查过程、底层原因和最终采用的 Mount Namespace 穿透方案。
 
 ---
 
@@ -43,8 +43,8 @@
     CANNOT LINK EXECUTABLE "/system/bin/cmd": file offset for the library "libutils.so" >= file size: 0 >= 0
     ```
 * **深入排查**：
-  * 执行 `ls -l /system/lib64/libutils.so`，赫然发现该文件大小为 **0 字节**（`---------- 0 root root`）！
-  * 执行 `mount | grep system` 揭晓真相：
+  * 执行 `ls -l /system/lib64/libutils.so`，发现该文件大小为 **0 字节**（`---------- 0 root root`）。
+  * 执行 `mount | grep system`：
     ```text
     magisk on /android/system/lib64 type tmpfs (ro,relatime,size=3667512k,mode=755)
     ```
@@ -67,7 +67,7 @@
 
 ---
 
-### 1.4 陷阱四（黄金方案）：精准单维度 Mount Namespace 穿透 (`nsenter -t 1 -m`)
+### 1.4 陷阱四：精准单维度 Mount Namespace 穿透 (`nsenter -t 1 -m`)
 * **思路**：
   * 我们处于 Root 权限（`uid=0 gid=0`，SELinux 域为 unrestricted 的 `u:r:magisk:s0`，具备全部 41 项内核权能）。
   * 我们**不需要**切换网络栈（网络栈本来就是共享的），也**不需要**切换 PID 命名空间。
@@ -80,11 +80,11 @@
   ```text
   uid=0(root) gid=0(root) groups=0(root) context=u:r:magisk:s0
   ```
-  **100% 成功运行！** 无任何 dynamic linker 报错，无任何 namespace 冲突。
+  **运行成功**：无 dynamic linker 报错，无 namespace 冲突。
 
 ---
 
-## 2. 深入系统调优：四大核心子系统取证与实测突破
+## 2. 系统调优：四个核心子系统的取证与实测
 
 ### 2.1 陷阱五：MIUI 专有高刷锁定机制 (`PRIORITY_MIUI_REFRESH_RATE`)
 * **背景与现象**：
@@ -102,7 +102,7 @@
   1. `secure miui_refresh_rate`: 控制 MIUI 框架层的最高档位（60、90、120）。
   2. `secure user_refresh_rate`: 用户在系统设置中选定的刷新率。
   3. `system is_smart_fps`: 智能动态帧率开关（`1` 为开启动态降频，`0` 为强行关闭动态降频）。
-* **终极 120Hz 全域强锁方案**：
+* **120Hz 锁定方案**：
   ```bash
   nsenter -t 1 -m /system/bin/settings put secure miui_refresh_rate 120
   nsenter -t 1 -m /system/bin/settings put secure user_refresh_rate 120
@@ -147,7 +147,7 @@
   * 宿主 Android 的根文件系统没有 `/root/md` 目录（Debian 容器的文件系统仅在 chroot 的工作目录下）。
   * 宿主的 `/sdcard` 指向 `/storage/emulated/0`。
   * 而在 Debian chroot 容器内，宿主外置存储被挂载在 `/android/storage/emulated/0`。
-* **优雅解法**：
+* **解决办法**：
   脚本层自动识别目标路径：
   * 若目标路径为宿主原生路径（如以 `/sdcard/` 或 `/data/local/tmp/` 开头），直接调用 `screencap` 写入。
   * 若目标路径为容器本地路径（如 `/root/...` 或相对路径），先通过 host namespace 将截图输出到 `/sdcard/.screencap_tmp.png`，随后在容器内从 `/android/storage/emulated/0/.screencap_tmp.png` 搬运至目标容器路径并清理临时文件。
@@ -167,7 +167,7 @@
 
 ---
 
-## 3. 生产级架构图与调用链
+## 3. 架构图与调用链
 
 ```mermaid
 flowchart TD

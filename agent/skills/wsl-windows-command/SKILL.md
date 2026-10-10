@@ -21,7 +21,7 @@ WSL2 can launch Windows executables directly through the `/mnt/c` interop bridge
 4. **`cd /mnt/c` Before Launching `cmd.exe`** (and only tools that need it):
    A Windows process inherits the WSL cwd as `\\wsl.localhost\<distro>\...`. `cmd.exe` refuses UNC working directories, prints a warning, and **silently falls back to `C:\Windows`** -- harmless for `echo`, corrupting for anything path-relative.
    Measured on this machine: `wsl.exe`, `powershell.exe` and `pwsh.exe` all run fine from a WSL cwd. Do not cargo-cult `cd /mnt/c` onto every interop call; it is only load-bearing for `cmd.exe` and the handful of legacy tools that behave the same way.
-5. **Use the Bundled Helper for Robust Execution**:
+5. **Use the Bundled Helper**:
    Use `scripts/run-pwsh.sh` -- it handles path conversion, quote safety, stdin detachment, and probes the interop socket instead of guessing.
 
 ---

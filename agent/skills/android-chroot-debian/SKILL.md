@@ -11,9 +11,9 @@ description: >-
 
 # Android Root chroot Debian (Termux) 容器运维与排障指南
 
-在已 Root 的 Android 设备上，通过 Termux 部署 `chroot` Debian 容器是搭建本地 Linux 开发环境与运行 AI Agent（如 Claude Code、Antigravity CLI / `agy`）的终极方案。
+在已 Root 的 Android 设备上，通过 Termux 部署 `chroot` Debian 容器是搭建本地 Linux 开发环境与运行 AI Agent（如 Claude Code、Antigravity CLI / `agy`）的一种可行方案。
 
-然而，从 Android Bionic 与 glibc 的动态链接冲突，到共享内核、Magisk SELinux 域策略、Linux Mount Namespace 隔离以及 UNIX 98 PTY 伪终端机制的叠加，会引发一系列极具隐蔽性的底层故障。本 skill 总结真实实战中的排错经历、底层机理与生产级封装方案。
+然而，从 Android Bionic 与 glibc 的动态链接冲突，到共享内核、Magisk SELinux 域策略、Linux Mount Namespace 隔离以及 UNIX 98 PTY 伪终端机制的叠加，会引发一系列极具隐蔽性的底层故障。本 skill 记录这些故障的排查过程、底层机理和启动脚本封装。
 
 ---
 
@@ -119,7 +119,7 @@ description: >-
 
 ---
 
-## 3. 标准生产级封装方案：`debian` 启动器
+## 3. 标准封装：`debian` 启动器
 
 在 Termux 宿主端部署 `$HOME/.local/bin/debian` 启动脚本，实现：
 1. **自动提权与 Mount Namespace 隔离**：未带 `--root` 启动时自动以 `su -c "/system/bin/unshare -m ..."` 重启自身，容器退出时自动卸载，绝不污染 Android 宿主。
@@ -131,7 +131,7 @@ description: >-
 5. **一键轻量自检模式 (`debian --check`)**：
    通过纯 Bash 文件描述符重定向 `exec 3<>/dev/ptmx` 探测 PTY 可分配性，全面核验 procfs、UID 及 Android 宿主目录。
 
-### 3.1 启动器部署
+### 3.1 启动器部署与非交互执行
 完整脚本见 [`scripts/debian-chroot-launcher.sh`](scripts/debian-chroot-launcher.sh)。在 Termux 中部署方式：
 
 > **路径**：下面的命令统一写 `~/.agents/skills/android-chroot-debian/`。装在别处也能用，换成实际位置即可：`~/.claude/skills/android-chroot-debian/`、`~/.gemini/config/skills/android-chroot-debian/`，或相对本 SKILL.md 的路径，三处有一处存在就行。
@@ -142,14 +142,32 @@ cp "$HOME/.agents/skills/android-chroot-debian/scripts/debian-chroot-launcher.sh
 chmod 700 "$HOME/.local/bin/debian"
 ```
 
-### 3.2 极简 Debian 容器构建
-若需从零构建 minimal 容器，可运行 [`scripts/bootstrap-debian-termux.sh`](scripts/bootstrap-debian-termux.sh)。关键配置包括清华 TUNA 镜像源、Debian Trixie Keyrings 验证、Android DNS 属性继承（`getprop net.dns1`）与 `/tmp` 1777 权限设置。
+启动器支持交互式登录与非交互式命令透传：
+* `debian`：进入交互式 Debian 终端。
+* `debian --check`：运行轻量级非交互健康自检。
+* `debian --exec <cmd>` 或 `debian -c <cmd>`：在隔离 Mount Namespace 内非交互式执行指定命令并返回退出码。
+
+### 3.2 两阶段端到端自动化（一口气部署）
+为了避免人工分步操作，提供了两阶段串联自动化脚本：
+* **阶段一（Termux 宿主端）**：[`scripts/01-termux-deploy-debian.sh`](scripts/01-termux-deploy-debian.sh)（即 [`bootstrap-debian-termux.sh`](scripts/bootstrap-debian-termux.sh)）
+  * 从清华 TUNA 源 debootstrap 极简 Debian Trixie 根文件系统；
+  * 自动部署加固启动器，并将阶段二脚本复制至容器 `$DEBIAN_ROOT/root/`；
+  * 通过 `debian --exec /root/setup-debian-env.sh` 直接跨边界触发阶段二。
+* **阶段二（Debian 容器端）**：[`scripts/02-debian-setup-env.sh`](scripts/02-debian-setup-env.sh)（即 [`setup-debian-env.sh`](scripts/setup-debian-env.sh)）
+  * **npmmirror** 承载 Node.js LTS 官方预编译二进制包下载与 npm/pnpm 全局注册表；
+  * **清华 TUNA 源** 承载 Debian APT 基础软件仓库与 uv/Python 3.12 的 PyPI 镜像；
+  * 自动配置 UTF-8 语言环境、时区以及 `PYTHONUNBUFFERED=1` 规范。
+
+在 Termux 中执行如下命令即可一口气完成全量部署：
+```bash
+bash scripts/01-termux-deploy-debian.sh
+```
 
 ---
 
 ## 4. 环境健康核验清单 (Checklist)
 
-在进入 Debian 容器后，可执行以下命令进行端到端全量自检（或在容器内运行 [`scripts/verify-chroot-env.sh`](scripts/verify-chroot-env.sh)）：
+在进入 Debian 容器后，可执行以下命令检查环境（或在容器内运行 [`scripts/verify-chroot-env.sh`](scripts/verify-chroot-env.sh)）：
 
 | 检查项 | 验证命令 | 预期输出 / 正常标准 | 异常处理 |
 | :--- | :--- | :--- | :--- |
@@ -165,6 +183,8 @@ chmod 700 "$HOME/.local/bin/debian"
 
 ## 5. 更多深度参考
 
+* [端到端两阶段 Debian chroot 自动化流水线 (英文规范)](references/two-stage-automation.md) | [中文说明](references/two-stage-automation.zh.md)
 * [Bionic vs glibc ELF 解释器冲突 (`cannot execute: required file not found`)](references/bionic-vs-glibc-elf.md)
 * [Mount Namespace 隔离与会话不同步陷阱分析](references/mount-namespace-gotchas.md)
 * [PTY 伪终端与 /proc/self/exe 机制深剖](references/pty-and-proc-internals.md)
+

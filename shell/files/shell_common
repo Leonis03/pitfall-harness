@@ -130,6 +130,8 @@ _path_prepend "$HOME/.local/bin"          # Antigravity CLI (agy), pipx, uv tool
 export PNPM_HOME="$HOME/.local/share/pnpm"
 _path_prepend "$PNPM_HOME/bin"
 
+[ -d "$HOME/.minimax-code/bin" ] && _path_prepend "$HOME/.minimax-code/bin"
+
 # Guarded: exporting a JAVA_HOME that does not exist breaks tools that trust it
 if [ -d /usr/lib/jvm/default-java ]; then
   export JAVA_HOME=/usr/lib/jvm/default-java
@@ -142,6 +144,7 @@ export PATH
 # 4. Toolchains
 # ------------------------------------------------------------------------------
 export NVM_DIR="$HOME/.nvm"
+export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 # ------------------------------------------------------------------------------
@@ -216,4 +219,4 @@ fi
 # ------------------------------------------------------------------------------
 # 9. Secrets (optional, never committed)
 # ------------------------------------------------------------------------------
-[ -f "$HOME/.shell_secrets" ] && \. "$HOME/.shell_secrets"
+[ -f "$HOME/.shell_secrets" ] && \. "$HOME/.shell_secrets" || true

@@ -1,4 +1,4 @@
-# 荣耀平板 Linux 实验室 Debian 卡死深度剖析与 AssetsPatcher 绕过
+# 荣耀平板 Linux 实验室 Debian 卡死分析与 AssetsPatcher 绕过
 
 ## 1. 卡死现象复现与抓包取证
 
@@ -67,7 +67,7 @@ if (currentHash != expectedHash) {
 * `assets/xvfb_patch/Xvfb` -> `usr/bin/Xvfb`
 * `libFcitx5Core.so` 等
 
-**关键破局点**：`AssetsPatcher` **完全没有监控 `/usr/bin/xrdb` 和 `/usr/bin/pulseaudio`**！
+**关键点**：`AssetsPatcher` **完全没有监控 `/usr/bin/xrdb` 和 `/usr/bin/pulseaudio`**！
 
 ### 落地操作
 保留原始 `/usr/bin/start` 不动（其 SHA256 依然完全符合官方预期），直接替换其调用的子命令：
@@ -84,7 +84,7 @@ EOF
 chmod +x /usr/bin/xrdb
 ```
 
-### 执行收益
+### 绕过后的执行流程
 1. `AssetsPatcher` 校验 `/usr/bin/start`，哈希完全匹配，跳过覆写。
 2. 容器执行 `start` 脚本，运行到 `xrdb` 时瞬间返回 0。
 3. 脚本在 3 秒后打印出 `StartFinished`。

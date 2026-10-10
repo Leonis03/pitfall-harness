@@ -28,9 +28,10 @@ and **human-facing** (direct Chinese translations for human reference).
 
 Two kinds of content: **deployable originals** (config files copied to a live location) and
 **docs** (conclusions from debugging). This is the private primary repo
-(`vibe-pitfalls-notes-private`). `tools/publish.sh` exports `origin/main` into two public repos:
-`vibe-pitfalls-notes` (the whole tree) and `vibe-coding-pitfalls-skills` (the skills, minus the
-vendored `find-skills`). So everything tracked must be publishable.
+(`pitfall-harness-private`). `tools/publish.sh` exports `origin/main` into two public repos:
+`pitfall-harness` (the whole tree) and `pitfall-harness-skills` (the skills, minus the
+vendored `find-skills`). So everything tracked must be publishable, except `drafts/`, which
+stays private (see below).
 
 ## Map
 
@@ -39,19 +40,21 @@ vendored `find-skills`). So everything tracked must be publishable.
 | `shell/files/` | four-layer bash/zsh config, shared by WSL and native Linux | `~/.shell_common` `~/.shell_wslfn` `~/.zshenv` `~/.zshrc` `~/.bashrc` `~/.profile` (cp) |
 | `wsl/setup/` | WSL rebuild guide; `files/` = WSL-only originals | `/etc/wsl.conf`, `%USERPROFILE%\.wslconfig`, `/etc/fstab` (append), `/etc/systemd/system/`, `~/.local/bin/wslview` |
 | `wsl/distro-differences.md` | Ubuntu vs Fedora differences | -- |
+| `wsl/uninstall-cleanup.md` | uninstalling WSL, residue cleanup | -- |
 | `wsl/gui-ime/` | WSLg GUI apps, fcitx5 | -- |
 | `wsl/storage/` | disk guides; `forensics/` = raw evidence from one incident, read-only history | -- |
-| `linux-desktop/` | Mint desktop notes (numbered sections 2.x); `files/` = Ghostty, Nemo originals | `~/.config/ghostty/config`, `~/.local/share/nemo/actions/` |
-| `windows/` | Terminal, PowerShell, context menu, Windows Update | `$PROFILE` (`Microsoft.PowerShell_profile.ps1`), `.reg` imports |
+| `linux-desktop/` | Mint desktop notes (sections 2.x) and `gui-and-ime.md` (Fcitx5, Rime, fonts, tools, pnpm); `files/` = Ghostty, Nemo, fontconfig, pnpm originals | `~/.config/ghostty/config`, `~/.local/share/nemo/actions/`, `/etc/fonts/conf.avail/`, `~/.config/pnpm/` |
+| `windows/` | Terminal, PowerShell (incl. Typora close/kill scripts), IME / keyboard layouts, context menu, Windows Update | `$PROFILE` (`Microsoft.PowerShell_profile.ps1`), `.reg` imports |
 | `agent/claude-code/` | `settings.json`, `claude-global.md`, `statusline-command.sh` | `~/.claude/` (`claude-global.md` -> `~/.claude/CLAUDE.md`) |
 | `agent/antigravity/` | `agents-brave-uv.md` + agy notes | `~/.gemini/config/AGENTS.md` |
-| `agent/brave-search/` | bx CLI and Brave MCP notes | -- |
+| `agent/brave-search/` | bx CLI and Brave MCP notes; `files/setup-bx-linux.sh` (WSL / Linux) and `files/setup-bx-windows.ps1` = setup scripts | run them (install into `~/.local/bin`, write the `bx` wrapper) |
 | `agent/skills/<name>/` | one skill each; install matrix in `agent/skills/README.md` | `~/.claude/skills/`, `~/.gemini/config/skills/`, `~/.agents/skills/` -- **only** via `tools/sync-skills.sh`; also published as `skills/<name>/` in the skills repo |
 | `git-github/` | git/gh setup, history email scrub runbook | -- |
 | `tools/` | repo scripts `privacy-gate.sh`, `sync-skills.sh`, `publish.sh`; notes `python/`, `remote-ssh.md`, `docker/`, `latex/` | -- |
 | `tmp/` | scratch area, gitignored | never committed |
+| `drafts/` | private-only: half-finished notes and the to-do list for them; tracked here, **never exported** | `tools/publish.sh` deletes it from the export; promote a draft by moving it into its real directory |
 
-Every top-level directory except `tmp/` has a `README.md` index. Read it before editing inside that directory.
+Every top-level directory except `tmp/` has a `README.md` index (`drafts/` too). Read it before editing inside that directory.
 
 ## Request -> files to edit
 

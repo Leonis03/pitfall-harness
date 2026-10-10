@@ -86,7 +86,7 @@ bx web "query" --count 10 | jq -r '.web.results[].url'
 
 当前套餐不支持：`bx suggest` 返回 HTTP 400。
 
-## 值得注意的 flag
+## 常用 flag
 
 - `--count N` —— 永远要设。
 - `--freshness pd|pw|pm|py` 或 `YYYY-MM-DDtoYYYY-MM-DD`（适用于 `news`、`web`）。

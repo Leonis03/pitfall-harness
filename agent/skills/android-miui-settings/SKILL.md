@@ -17,7 +17,7 @@ arguments: [action, namespace, key]
 
 When running AI coding agents (Claude Code, Antigravity CLI / `agy`) inside a rooted Android chroot environment (Termux Debian), accessing the host Android settings database (`SettingsProvider`) is essential for network automation, DoT configuration, background process survival, and display tuning.
 
-However, invoking Android's `/system/bin/settings` directly fails due to Bionic dynamic linker conflicts, Magisk tmpfs overrides, and Linker Namespace isolation. This skill provides a clean, robust, and zero-side-effect production solution via targeted **Mount Namespace penetration (`nsenter -t 1 -m`)**.
+However, invoking Android's `/system/bin/settings` directly fails due to Bionic dynamic linker conflicts, Magisk tmpfs overrides, and Linker Namespace isolation. This skill provides a solution via targeted **Mount Namespace penetration (`nsenter -t 1 -m`)**.
 
 ---
 
