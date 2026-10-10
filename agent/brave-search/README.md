@@ -6,6 +6,8 @@
 | :--- | :--- |
 | 本页 | 搜索路由的现状：先 `bx`，MCP 作退路，以及使用规则 |
 | [`bx-cli.md`](bx-cli.md) | `bx` 安装、代理 wrapper、jq 配方、与内置 WebSearch 的分工 |
+| [`files/setup-bx-linux.sh`](files/setup-bx-linux.sh) | WSL / Linux 一键部署：jq、`bx-bin`、代理 wrapper、API key、验证（幂等，`--upgrade` 升级） |
+| [`files/setup-bx-windows.ps1`](files/setup-bx-windows.ps1) | Windows 一键部署：jq、`bx`、代理 wrapper、API key、验证（幂等，升级后重跑） |
 | [`brave-search-mcp.md`](brave-search-mcp.md) | MCP 方案（第三方 API 网关、无 shell 的环境） |
 
 > 本页原先是一份项目级 `CLAUDE.md`，改名为 README 是为了不被 Claude Code 当作指令自动加载，
@@ -20,7 +22,7 @@
 ## 网络环境
 
 - 本机（WSL）**无法直连外网**，所有访问必须走本地代理 `http://127.0.0.1:<proxy-port>`。
-- `bx` 的代理已由 `~/.local/bin/bx` wrapper 处理（清掉不兼容的 `ALL_PROXY=socks5h://`）。
+- `bx` 的代理已由 `~/.local/bin/bx` wrapper 处理（清掉不兼容的 `ALL_PROXY=socks5h://`）。Windows 侧同理（`bx.cmd` + `bx-bin.exe`），见 [`bx-cli.md` 第 3 节](bx-cli.md#3-代理配置关键)。
 - MCP 侧的代理配置（`NODE_USE_ENV_PROXY` 等）写在 `~/.claude.json` 的 brave-search 服务器 env 里。
 
 ## 搜索怎么走

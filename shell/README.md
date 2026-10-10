@@ -82,6 +82,12 @@ PATH 块。oh-my-zsh 用 `--unattended --keep-zshrc` 装；其余装完后检查
 - 转小写用 `tr`，不用 `${PWD:l}` / `${PWD,,}`，原因见上面硬规则 1。
 - Windows 侧（PowerShell `$PROFILE`）的对应做法见 [`../windows/terminal/`](../windows/terminal/)。
 
+## zsh 会展开以 `=` 开头的词
+
+zsh 默认开启 `EQUALS` 选项：以 `=` 开头的词会被替换成同名命令的路径（`=ls` → `/usr/bin/ls`）。所以 `echo ======` 在 zsh 里报 `zsh: = not found` 之类的错，而且**同一行后面的命令也没有执行**——和通配符无匹配时一样，整条命令行中止。bash 没有这个行为。
+
+分隔线、以 `=` 开头的参数一律加引号：`echo '---'`、`echo '======'`。AI agent 的命令如果跑在 zsh 上（Claude Code 会用用户的登录 shell），也会碰到。
+
 ## zsh-autosuggestions 按键
 
 `files/zshrc` 启用 `git`、`zsh-autosuggestions`、`zsh-syntax-highlighting`（语法高亮必须放在插件列表最后）。

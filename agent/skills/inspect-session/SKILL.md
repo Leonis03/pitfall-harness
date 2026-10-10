@@ -80,5 +80,5 @@ PYTHONUNBUFFERED=1 uv run --python 3.10 python ~/.agents/skills/inspect-session/
 ## 与其他会话技能的分工与联动
 
 - **`inspect-session`**（本技能）：**单会话行为审计与内容解析器**。在已知会话文件路径的前提下，完成零依赖的单会话透视（Git 操作账单、文件修改记录、分支差异对比、导出 Markdown）。
-- **`trim-branch`**：**会话外科手术刀**。专精于 DAG 拓扑分叉的切除、单分支安全抽取与原文件覆写。
+- **`trim-branch`**：会话分支裁剪：切除 DAG 拓扑分叉，安全抽取单个分支，并覆写原文件。
 - **`cass`**：**全局跨会话搜索引擎**。跨 23+ 种 Agent 检索全局历史、关键词找过去的解决方案。

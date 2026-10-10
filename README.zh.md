@@ -1,10 +1,10 @@
-# vibe-pitfalls-notes
+# pitfall-harness
 
 *[English](README.md) · 中文*
 
 给 AI 编程 agent 搭环境时踩过的坑。每条都写明症状、根因和实证方法——配置是鱼，排查的方法才是渔。
 内容来自一个人的几台机器，主力工具是 Claude Code 与 Antigravity CLI，网络走本地代理。
-skill 另有单独的仓库可直接安装：[vibe-coding-pitfalls-skills](https://github.com/Leonis03/vibe-coding-pitfalls-skills)。
+skill 另有单独的仓库可直接安装：[pitfall-harness-skills](https://github.com/Leonis03/pitfall-harness-skills)。
 
 ---
 
@@ -99,13 +99,14 @@ WSL 专属的互操作函数在原生 Linux 上靠 `/proc/version` 检测自动�
 | [`setup/`](wsl/setup/) | **环境复刻指南**。`.wslconfig`、`/etc/wsl.conf`、fstab、binfmt 与 `/mnt/wsl` 守护、apt 换源、工具链。`files/` 下是 WSL 专属原件 |
 | [`distro-differences.md`](wsl/distro-differences.md) | Ubuntu 24.04 与 Fedora 44 的差异 |
 | [`gui-ime/`](wsl/gui-ime/) | WSLg 图形应用与 fcitx5 中文输入法 |
+| [`uninstall-cleanup.md`](wsl/uninstall-cleanup.md) | 卸载单个发行版或整个 WSL、残留清理、验证与重装 |
 | [`storage/`](wsl/storage/) | 发行版迁移到非系统盘、pnpm/npm 磁盘清理；`forensics/` 是一次 `E_ACCESSDENIED` 故障的原始取证记录 |
 
 核心是 **`appendWindowsPath=false` + 显式函数桥接**：不注入 Windows 的几百个 PATH 条目，只把真正需要的几个 `.exe` 包成 shell 函数。
 
 ### [`windows/`](windows/) —— Windows 侧
 
-[`terminal/`](windows/terminal/)（Windows Terminal 配置）· [`powershell/`](windows/powershell/)（PowerShell 7 profile、PSReadLine、一键关闭所有资源管理器窗口）· [`context-menu/`](windows/context-menu/)（右键菜单项排查与优化）· [`windows-update/`](windows/windows-update/)（把功能更新钉在 24H2，但保留更新可见性）
+[`terminal/`](windows/terminal/)（Windows Terminal 配置）· [`powershell/`](windows/powershell/)（PowerShell 7 profile、PSReadLine、一键关闭所有资源管理器窗口、关闭 / 强制关闭 Typora）· [`ime-keyboard/`](windows/ime-keyboard/)（卸载语言后残留的键盘布局、拼音首字母漏成英文的排查清单）· [`context-menu/`](windows/context-menu/)（右键菜单项排查与优化）· [`windows-update/`](windows/windows-update/)（把功能更新钉在 24H2，但保留更新可见性）
 
 ### [`linux-desktop/`](linux-desktop/) —— 原生 Linux 桌面
 
@@ -145,12 +146,18 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **`filter-repo` 静默毁改动** | 重写历史后未提交的已跟踪修改消失，且无提示 | [`git-github/email-scrub-runbook.md`](git-github/email-scrub-runbook.md) 第 2 节 |
 | **`no_proxy` 通配符失效** | 访问本机服务却穿了代理，报 502 空体像"请求失败" | [`tools/python/`](tools/python/) 第 1 节 |
 | **f-string 引号规则** | `invalid syntax`，且 3.10 与 3.12 行为不同 | [`tools/python/`](tools/python/) 第 2 节 |
+| **numpy 2 不会让纯 Python 循环变快** | 热点在 Python 循环里时，为提速升级 numpy 毫无作用；同一个任务从 3.10 换到 3.12 快了 1.4 倍，输出逐字节相同 | [`tools/python/`](tools/python/) 第 3 节 |
+| **`uv run` 一声不吭地卡住** | 平时几秒的命令没有输出、不报错，几分钟不结束：卡在解析依赖的联网检查上。依赖都在缓存里时加 `--offline` | [`tools/python/`](tools/python/) 第 4 节 |
 | **`pkill -f` 杀掉自己** | 返回 255，看起来像 SSH 断连 | [`tools/remote-ssh.md`](tools/remote-ssh.md) 第 2 节 |
 | **Python 里设线程数太晚** | BLAS 已初始化，48 worker 开 3077 线程，慢 227 倍 | [`tools/remote-ssh.md`](tools/remote-ssh.md) 第 3 节 |
+| **heredoc 脚本里的 `ssh` 吞掉后面的脚本** | 第一条 `ssh` 之后的命令全都没执行，退出码 0：`ssh` 会转发标准输入，而 heredoc 里标准输入就是脚本本身。加 `ssh -n` | [`tools/remote-ssh.md`](tools/remote-ssh.md) 第 8 节 |
+| **`set -e` 加 `\| grep`，没匹配就中止** | 脚本停在一条其实成功了的命令后面：用来过滤的 `grep` 没匹配到，返回了 1 | [`tools/remote-ssh.md`](tools/remote-ssh.md) 第 9 节 |
+| **`rsync` 拉回覆盖了本地更新的文件** | 本地重新生成过的报告悄悄变回远端的旧版本。先 `-n --itemize-changes` 预览；用 `--ignore-existing` 或 `--update` | [`tools/remote-ssh.md`](tools/remote-ssh.md) 第 10 节 |
 | **盘符路径在 WSL 恒不存在** | `C:/Windows/Fonts/...` 找不到字体，静默出豆腐块且不报错 | [`agent/skills/linux-cjk-font/`](agent/skills/linux-cjk-font/) |
 | **写死的 Windows 账户名会过期** | 同样是静默豆腐块：`/mnt/c/Users/<旧机器的账户名>/...` 在本机不存在。WSL 里没有 `%USERPROFILE%`，该用 `glob("/mnt/c/Users/*/...")` | [`agent/skills/README.md`](agent/skills/README.md) |
 | **drvfs 大小写不敏感，会把写死的账户名藏起来** | 比上一条更阴：本机 Windows 账户名与 `$USER` 只差大小写，字符串相等判断为假，但 `/mnt/c/Users/$USER/...` 照样 stat 成功——于是「用 `$USER` 拼 Windows 家目录」这个错做法在本机**一直是通过的**，换台名字真不同的机器才静默失效 | [`wsl/setup/`](wsl/setup/) 常见问题 |
 | **zsh 在 `for` 列表里遇到无匹配 glob 会中止整个文件** | 同一份 `~/.shell_common` 被 bash 和 zsh 共用；bash 把字面量原样传下去，zsh 直接 `no matches found` 退出，后面的配置全不执行 | [`wsl/setup/`](wsl/setup/) 常见问题 |
+| **zsh 里 `echo ======` 报错** | `zsh: = not found`，同一行后面的命令也不执行：以 `=` 开头的词会被展开成命令路径。加引号 | [`shell/`](shell/) |
 | **非交互 bash 没有 `.zshenv` 的对等物** | zsh 侧的互操作函数覆盖到了脚本和 agent，bash 侧没有：`bash -c` 和 `#!/bin/bash` 两个启动文件都不读。验收清单历史上写的是 `bash -ic`，带 `-i` 恰好把缺口盖住了。出口是 `BASH_ENV` | [`wsl/setup/`](wsl/setup/) 验证清单第 3 条 |
 | **`.gitattributes` 管不到 zip** | 整个文件被报成重写，真改动淹没在假 diff 里 | [`git-github/crlf-and-diffing.md`](git-github/crlf-and-diffing.md) |
 | **`/reg:64` 重定向** | 注册表键"明明存在却找不到" | [`agent/skills/wsl-windows-command/`](agent/skills/wsl-windows-command/) |
@@ -169,6 +176,9 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **脱敏占位符借用了 `$HOME`** | 同一个记号既表示"待替换的家目录"，又表示真正的 shell 变量；一渲染就把 `set-deepln.sh` 里的 `$HOME` 硬编码成本机路径，脚本到了租来的 GPU 机上全错。判据应该是"会不会被 shell 展开"，不是文件类型 | [`agent/skills/README.md`](agent/skills/README.md) |
 | **DeepLN 实例之间走公网域名不通** | 在一台租用机上 `ssh`/`rsync` 另一台的 `<实例>.deepln.com:<端口>` 一直超时，两个方向都一样。集群内要走 pod 内网 IPv4（`hostname -I`）的 22 端口，配 `ssh -A` 借本地密钥，实测 145–204 MB/s，约为家里上行的 100 倍 | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) 第 5.3 节 |
 | **DeepLN「保存数据」快照多一层 `data/`** | 按常见写法 `tar xvf - -C /data/coding` 解开，文件落到 `/data/coding/data/coding/...`：压缩包是整个 `/data`。在 `-C /` 后加一个空格，写成 `-C / data/coding`：只解项目目录、不套娃；不加 `data/coding` 解到 `/` 又会覆盖新实例自己的 alist 配置 | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) 第 5.2 节 |
+| **DeepLN 的 CPU 实例有两种规格** | 没有 GPU 的租用机要么是 1 核 / 2 GiB 的中转机，要么是 24 核 / 47 GiB 的计算机，`nproc`（80 或 256）看不出是哪种。按错的规格安排任务，不是饿死就是浪费。看 cgroup 配额 | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) 第 5.1 节 |
+| **uv 的设置随租期消失** | 换租后 `uv pip install` 又变慢：TUNA 索引写在 `~/.config/uv/uv.toml`，它不在 `/data` 下。uv 的 Python、缓存、虚拟环境放 `/data`，配置由安装脚本每次重写 | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) 第 6 节 |
+| **停掉的 DeepLN 实例换了主机密钥** | 实例关机或换租后 ssh 报 `REMOTE HOST IDENTIFICATION HAS CHANGED`。这时是正常的，但 `ssh-keygen -R` 之前先在控制台确认，不要条件反射地接受 | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) 第 0 节 |
 | **skill 的 `description` 里有 `: `，严格解析器静默丢掉整个 skill** | Claude Code 里好好的，`npx skills add --list` 却少两个、不报错。不加引号的 YAML 值里 `: ` 不合法，Claude Code 宽松放行，严格解析器直接跳过。改成 ` -- ` 或加引号 | [`agent/skills/README.md`](agent/skills/README.md) 约定 |
 | **jq 路径写错静默出 0 行** | 对 `bx news` 用 `.web.results[]`，exit 0 无报错，看起来像"这话题没结果" | [`agent/brave-search/bx-cli.md`](agent/brave-search/bx-cli.md) 第 6 节 |
 | **搜索前置 skill 成了固定税** | CLAUDE.md 每会话常驻、skill 正文按需加载，把 2.2k 的 skill 设成 `bx` 前置，成本结构正好反了 | [`agent/claude-code/README.md`](agent/claude-code/README.md) |
@@ -187,8 +197,9 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **Android Bionic Linker 命名空间断裂与 Magisk 桩覆写** | 在 Debian chroot 内直接调用宿主 `/system/bin/settings` 报 `cannot execute` 或动态链接器崩溃（`file offset for libutils.so >= file size: 0 >= 0`）。Magisk tmpfs 覆写了动态库且链接器缺少运行时拓扑，必须使用单维度 `nsenter -t 1 -m` 穿透宿主 Mount Namespace 执行 | [`agent/skills/android-miui-settings/`](agent/skills/android-miui-settings/) |
 | **MIUI 专有高刷投票覆盖 AOSP 设置** | 单纯修改 `system` 表的 `peak_refresh_rate` 无法锁定 120Hz，系统打字或静止时频繁掉帧。MIUI 框架在 `DisplayModeDirector` 插入了 `PRIORITY_MIUI_REFRESH_RATE` 专属投票，需联动设置 `secure miui_refresh_rate 120` 与 `system is_smart_fps 0` | [`agent/skills/android-miui-settings/`](agent/skills/android-miui-settings/) |
 | **桌面会话下 `chsh` 换 Shell 不即时生效** | 修改登录 Shell 后重启终端仍进入 Bash；`gnome-terminal-server` 后台长驻缓存登录 PAM 变量 | [`linux-desktop/`](linux-desktop/) 第 2.1 节 |
+| **代理明明在监听却 `Connection refused`（Windows 上的 `bx`）** | 与下一行同为 `socks5h` 根因，但 Windows 上该变量写在用户环境变量里，且系统还缺 `jq`，两个无关的报错看起来像同一个网络故障。`curl --noproxy` 返回 `000`、走代理返回 `301` 即可区分；给 `bx-bin.exe` 套 `bx.cmd` / `bx` wrapper 修复 | [`agent/brave-search/bx-cli.md`](agent/brave-search/bx-cli.md) 第 3 节 |
 | **Clash 桌面系统代理对 CLI 穿透失效** | 桌面浏览器能翻墙但终端直连超时；`bx` 遇 `socks5h` 报 exit 5 | [`linux-desktop/`](linux-desktop/) 第 2.2 节 |
-| **Linux Mint 22 换源脱靶** | 误按 Ubuntu deb822 规范改写导致 Mint 官方桌面套件仓库脱落 | [`linux-desktop/`](linux-desktop/) 第 2.3 节 |
+| **Linux Mint 22 换源脱靶与更新超时** | 误改 ubuntu.sources 丢 Mint 桌面仓库；官方海外源 300 kB/s 掐断更新器。双轨切清华 TUNA 源提速 16 倍 | [`linux-desktop/`](linux-desktop/) 第 2.3 节 |
 | **安装脚本污染 Shell 四层分层** | `pnpm setup` 与 nvm 自动追加 rc 文件破坏单一真相来源 | [`linux-desktop/`](linux-desktop/) 第 2.4 节 |
 | **终端粘贴快捷键提示无剪贴板工具** | CLI 按 Ctrl+V/Alt+V 报 `no supported clipboard tool`；原生桌面缺 `xclip`/`wl-clipboard` | [`linux-desktop/`](linux-desktop/) 第 2.5 节 |
 | **GNOME Terminal 静默丢弃 OSC 52 剪贴板** | `/copy` 提示复制成功但系统剪贴板为空；VTE 长期缺 OSC 52 写入，推荐 Ghostty | [`linux-desktop/`](linux-desktop/) 第 2.6 节 |
@@ -197,6 +208,14 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **Fcitx 5 默认 profile 缺失拼音** | 新装 Fcitx 5 重启后按快捷键无反应；默认模版仅含 `keyboard-us`，需补 `pinyin` | [`linux-desktop/`](linux-desktop/) 第 2.9 节 |
 | **Ghostty 默认 Ctrl+Enter 劫持全屏** | CLI/编辑器多行换行误触全屏；需 `keybind = ctrl+enter=unbind` 改绑 F11 | [`linux-desktop/`](linux-desktop/) 第 2.10 节 |
 | **Nemo 文件管理器缺失 Ghostty 右键菜单** | 无法直接在文件夹中拉起 Ghostty；需配置 Nemo Action 并区分目录选中与背景空白 | [`linux-desktop/`](linux-desktop/) 第 2.11 节 |
+| **AI Agent 执行 `sudo` 永久阻塞等待密码** | 非交互子进程没有 TTY 接收密码提示，命令无限挂起。在 `/etc/sudoers.d/nopasswd-<user>` 一次性授予 `NOPASSWD: ALL`，只需手工输入一次密码 | [`linux-desktop/`](linux-desktop/) 第 2.12 节 |
+| **pnpm 12 全局安装弹出交互式 build 审批，且 Node 缺失致 postinstall 失败** | `pnpm add -g` 弹出复选框交互界面，AI Agent 无法应答；即使加了 `--allow-build`，若 nvm 未初始化仍报 `node: not found`（exit 127）。先用 nvm 装好 Node，再逐包传 `--allow-build=<具体包名>`；可选的全局直通见第 2.16 节 | [`linux-desktop/`](linux-desktop/) 第 2.13 节 |
+| **Fcitx 5 桌面会话环境变量断层（`run_im none`）** | 终端输入正常但 WPS/微信/桌面 GUI 无法呼出输入法；`~/.xinputrc` 设为 `none` 抑制会话导出。执行 `im-config -n fcitx5` 并在 `/etc/environment` 与 `~/.xprofile` 固化 | [`linux-desktop/gui-and-ime.md`](linux-desktop/gui-and-ime.md) 第 1.1 节 |
+| **WPS Linux 丢输入法（QPlatformInputContext 回退）** | WPS Office 无法输入中文；缺失 `QT_IM_MODULE=fcitx` 致定制 Qt 回退 `compose` 插件且进程生命周期不可逆。在 `/usr/bin/wps` 等入口注入变量并重启 | [`linux-desktop/gui-and-ime.md`](linux-desktop/gui-and-ime.md) 第 1.2 节 |
+| **Fcitx 5 AltTriggerKeys 劫持左 Shift 字母直接上屏** | 按左 Shift 强制上屏汉字首选词而非字母；Fcitx 5 `AltTriggerKeys` 抢先拦截导致 Rime `commit_code` 无法执行。清空 `~/.config/fcitx5/config` 的 `AltTriggerKeys` | [`linux-desktop/gui-and-ime.md`](linux-desktop/gui-and-ime.md) 第 1.4 节 |
+| **Fontconfig 缺字回退跌入繁体/旧字形与衬线体失配** | 优先级 65 的 Droid Sans Fallback 抢跑 Noto CJK（优先级 70）引入台版旧字形；归一化 zh-Hans 并顶置 Noto Sans/Serif SC | [`linux-desktop/`](linux-desktop/) 第 2.14 节 |
+| **Fcitx 5 Rime 横向候选栏劫持左右键阻断拼音编辑** | 横向单行候选条下 selector 抢先拦截左右方向键致无法在拼音串中移动光标；覆盖解绑 selector 恢复原地修改 | [`linux-desktop/`](linux-desktop/) 第 2.15 节 · [`linux-desktop/gui-and-ime.md`](linux-desktop/gui-and-ime.md) |
+| **pnpm 12 默认阻断构建脚本与 24 小时发布冷却门禁** | `pnpm add -g` 弹出 `approve-builds` 交互选择并拦截 24 小时内新包（`minimumReleaseAge`）。**可选**，仅适用于只跑个人 Vibe Coding 的机器：配置 `dangerouslyAllowAllBuilds: true` 与 `minimumReleaseAge: 0` 直通放行；不采用则改用 `pnpm add -g --allow-build=<具体包名>` 逐包放行 | [`linux-desktop/`](linux-desktop/) 第 2.16 节 |
 
 ---
 

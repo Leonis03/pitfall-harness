@@ -13,7 +13,7 @@ allowed-tools: Bash Read
 
 荣耀平板「Linux 实验室」（`com.hihonor.pcengine`）基于 Android PRoot 用户态虚拟化，为平板提供 Ubuntu 与 Debian 两种桌面环境。宿主无 root 权限，私有目录受 Android 沙箱严格隔离（UID `u0_a303`，700 权限）。
 
-本 skill 汇总多次生产级排障、死锁恢复、无 root 提权注入与系统净化的实战沉淀。
+本 skill 记录多次排障的经过，涉及死锁恢复、无 root 提权注入和系统清理。
 
 ---
 
@@ -87,7 +87,7 @@ adb shell "cat /sdcard/task_output.log"
 ### 3.2 绕过 App 强校验防篡改机制 (`AssetsPatcher`)
 直接修改 `/usr/bin/start` 无效：应用类 `AssetsPatcher.kt` 在拉起容器前会对 `usr/bin/start` 计算 SHA256，发现变动立即从 APK 解压覆盖。
 
-**优雅解法：子程序 Wrapper 拦截**
+**解法：子程序 Wrapper 拦截**
 `AssetsPatcher` 只校验 `start`，不校验 `xrdb`。在容器内用 exit 0 脚本替换 `xrdb`：
 ```bash
 # 在容器内执行

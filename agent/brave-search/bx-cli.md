@@ -110,6 +110,14 @@ ureq 读到 `ALL_PROXY=socks5h://...` 解析失败 → 回退**直连** → 外�
 
 ### 解决：wrapper 脚本
 
+**一键脚本**：[`files/setup-bx-linux.sh`](files/setup-bx-linux.sh)（WSL / Linux；Windows 见下文「Windows 侧」的 `setup-bx-windows.ps1`）。装 jq、把官方 `install.sh` 装到临时目录再拷成 `bx-bin`（不会覆盖 wrapper）、写 wrapper、`bx config set-key`、验证；每步已完成就跳过。`--upgrade` 取最新 bx，`--skip-key` 不提示输入 key，`--dir DIR` 换安装目录。
+
+```sh
+sh agent/brave-search/files/setup-bx-linux.sh
+```
+
+在本机 WSL（Ubuntu）验证过三条路径：已配置状态重跑、全新目录从官方安装器装起、把裸二进制 `bx` 升级后的状态（自动改名为 `bx-bin` 并换回 wrapper）。缺 jq 时的 apt 安装分支没有实际跑过。下面是脚本写出的 wrapper 内容：
+
 `~/.local/bin/bx` 是 wrapper（真二进制改名为 `bx-bin`）：
 
 ```sh
@@ -144,6 +152,70 @@ exec "$DIR/bx-bin" "$@"
 > - 调试真二进制用 `~/.local/bin/bx-bin`，并自行清 `ALL_PROXY`。
 > - 更换代理地址只需改环境变量，wrapper 无需改动。
 
+### Windows 侧：同一个根因，外加缺 `jq`（2026-10-02 实测）
+
+Windows 11 上 PowerShell 和 Git Bash 里的 `bx web ...` 都报 `error: io: Connection refused`（exit 5），
+`| jq` 又报 `jq: command not found`。这是**两个互不相干的问题**，先分清再修：
+
+| 现象 | 实际原因 | 怎么确认 |
+| :--- | :--- | :--- |
+| `Connection refused`（exit 5） | **不是网络问题**，代理一直在监听。用户级环境变量里写着 `ALL_PROXY=socks5h://127.0.0.1:<proxy-port>`，和 WSL 同一个根因：ureq 解析不了 `socks5h://`，回退直连 | `curl.exe --noproxy "*" https://api.search.brave.com/` 返回 `000`，不带 `--noproxy`（走代理）返回 `301`；`$env:ALL_PROXY=''` 之后 `bx` 立即 exit 0 |
+| `jq: command not found` | Windows 默认没有 `jq`，PowerShell 与 Git Bash 都没有 | `Get-Command jq` 为空 |
+
+**一键脚本**：[`files/setup-bx-windows.ps1`](files/setup-bx-windows.ps1) 把下面的手工步骤串起来（装 jq、装 `bx`、改名 + 写 wrapper、`bx config set-key`、验证），每步已完成就跳过，**升级 `bx` 之后重跑一次即可**：
+
+```powershell
+pwsh -NoProfile -File agent\brave-search\files\setup-bx-windows.ps1 [-SkipInstall] [-SkipKey] [-InstallDir <dir>]
+```
+
+已在本机验证两条路径：已配置状态下重跑（幂等）、全新目录从官方 `install.ps1` 装起。踩过一个坑：用 `Invoke-Expression` 在脚本内直接执行官方安装脚本，它的变量会覆盖脚本自己的变量，`bx-bin.exe` 没生成却不报错；现在改为子进程执行。
+
+手工步骤如下。`ALL_PROXY` 写在注册表 `HKCU\Environment` 里（`[Environment]::GetEnvironmentVariable('ALL_PROXY','User')`），
+所有新开的终端都带着它，所以不能靠"当次会话清掉"解决，要像 WSL 一样用 wrapper：
+
+```powershell
+# 1. jq
+winget install -e --id jqlang.jq        # 装完要新开终端；已开的会话 PATH 不会刷新
+# 2. 真二进制改名，wrapper 占用 bx 这个名字（备份先放进 tmp/）
+cd $HOME\.local\bin
+Move-Item bx.exe bx-bin.exe
+```
+
+`bx.cmd`（PowerShell、cmd 用；`setlocal` 保证清空只在子进程里生效）：
+
+```bat
+@echo off
+setlocal
+if defined HTTPS_PROXY (set "ALL_PROXY=" & set "all_proxy=")
+if defined HTTP_PROXY (set "ALL_PROXY=" & set "all_proxy=")
+"%~dp0bx-bin.exe" %*
+exit /b %ERRORLEVEL%
+```
+
+`bx`（无扩展名的 sh 脚本，Git Bash 用；Git Bash 不查 `PATHEXT`，找不到 `bx.cmd`）：
+
+```sh
+#!/bin/sh
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -n "${HTTPS_PROXY:-}${HTTP_PROXY:-}${https_proxy:-}${http_proxy:-}" ]; then
+    export ALL_PROXY=
+    export all_proxy=
+fi
+exec "$DIR/bx-bin.exe" "$@"
+```
+
+验证（PowerShell 与 Git Bash 各跑一次，都应 exit 0 且有输出）：
+
+```powershell
+bx web "typora markdown" --count 2 | jq -r '.web.results[] | .title'
+bx news "typora" --freshness pm --count 2 | jq -r '.results[] | "\(.title)  [\(.age)]"'
+```
+
+注意：
+- 升级 `bx` 会重新生成 `bx.exe`，与 `bx.cmd` 并存时 PowerShell 优先解析 `.exe` 而绕过 wrapper，症状会原样回来。升级后把新 `bx.exe` 覆盖成 `bx-bin.exe` 即可。
+- 本机 Windows 上是 `bx 1.5.0`，与上文 WSL 的 1.7.0 不同，wrapper 逻辑与版本无关。
+- 看到 `Connection refused` 先别怀疑代理：`Test-NetConnection 127.0.0.1 -Port <proxy-port>` 和上表的 curl 对照两步就能区分。
+
 ---
 
 ## 4. API Key 与双套餐配置
@@ -165,7 +237,7 @@ bx config set-key YOUR_KEY     # 命令行参数
 export BRAVE_SEARCH_API_KEY=…  # 环境变量（临时，优先级最高）
 ```
 
-配置文件 `~/.config/brave-search/config.json`：
+配置文件 `~/.config/brave-search/config.json`（Windows 在 `%APPDATA%\brave-search\config.json`，用 `bx config path` 查）：
 
 ```json
 { "api_key": "BSA...", "base_url": "https://api.search.brave.com", "timeout": 30 }
@@ -397,6 +469,8 @@ echo '{"messages":[{"role":"user","content":"..."}]}' \
 | 现象 | 原因 | 解决 |
 |---|---|---|
 | `error: io: Connection refused`（exit 5） | ureq 读到 `ALL_PROXY=socks5h://` 解析失败回退直连 | 用 wrapper（[第 3 节](#3-代理配置关键)）；或手动清 `ALL_PROXY` |
+| Windows 上 `Connection refused`，但代理在监听 | 用户级 `ALL_PROXY=socks5h://`，同上根因 | 见[第 3 节 Windows 侧](#windows-侧同一个根因外加缺-jq2026-10-02-实测)：`bx-bin.exe` + `bx.cmd` / `bx` wrapper |
+| Windows 上 `jq: command not found` | 系统默认不带 jq | `winget install -e --id jqlang.jq`，新开终端 |
 | 升级后又开始 `Connection refused` | `install.sh` 覆盖了 wrapper | 按[第 2 节](#2-安装与升级)用 `BX_INSTALL_DIR` 重装 |
 | `option not in plan`（400）查 answers | 用了 Search 的 key | 加 `--config ~/.config/brave-search/config-answers.json` |
 | `option not in plan`（400）查 spellcheck/suggest | 套餐确实不含 | 改用 `context`；或升级套餐 |

@@ -47,8 +47,8 @@
   读 tools/.privacy-names   跳过 tmp/   只覆盖已知形态: 跑通 != 安全
        | pass
        v
-  git archive origin/main | tar -x   整棵树 -> vibe-pitfalls-notes
-                                     agent/skills -> vibe-coding-pitfalls-skills
+  git archive origin/main | tar -x   整棵树 -> pitfall-harness
+                                     agent/skills -> pitfall-harness-skills
        +-- 不用 cp -r: 它会把 gitignore 挡住的私有文件一并拷走
 
 【部署方向】 仓库 --> 本机(Fedora / Ubuntu / 租来的 GPU 机)

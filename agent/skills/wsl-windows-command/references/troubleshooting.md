@@ -1,6 +1,6 @@
 # Troubleshooting WSL-Windows Interop
 
-A comprehensive diagnostic guide for common errors, socket timeouts, binfmt registration issues, and quoting pitfalls when invoking Windows programs from WSL.
+Diagnostics for common errors, socket timeouts, binfmt registration issues, and quoting pitfalls when invoking Windows programs from WSL.
 
 ---
 

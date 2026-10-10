@@ -3,7 +3,7 @@
 本文档解答 Windows Terminal 默认启动路径机制，并提供三大核心配置：
 1. **使用命令将 Windows Terminal 默认路径修改为继承打开时的实际工作目录（`startingDirectory: null`）**；
 2. **在 PowerShell 配置文件中加入检测与路径上报（System32 / SysWOW64 自动转 `~`、`OSC 9;9` 实时上报）**；
-3. **优化 PowerShell 7 右键菜单为 Windows Terminal 原生调用（彻底解决右键打开后点击 `+` 继承路径及标题闪烁问题）**。
+3. **优化 PowerShell 7 右键菜单为 Windows Terminal 原生调用（解决右键打开后点击 `+` 继承路径及标题闪烁问题）**。
 
 ---
 

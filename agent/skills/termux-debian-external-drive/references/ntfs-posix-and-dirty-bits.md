@@ -11,8 +11,8 @@
 * **根因**：
   * NTFS 本身采用 Windows 安全描述符（SID / ACL），而非标准的 UNIX POSIX uid/gid/mode 体系。
   * Android 的 FUSE 驱动在挂载时使用了固定的模拟映射（例如 `uid=0,gid=1077,fmask=007,dmask=007`）。所有针对文件的底层权限修改在驱动层被丢弃。
-* **致命后果**：
-  * **OpenSSH 拒绝连接**：OpenSSH 对私钥实施强制安全门禁，若权限不为 `600`，报错：
+* **后果**：
+  * **OpenSSH 拒绝连接**：OpenSSH 要求私钥权限为 `600`，否则报错：
     ```text
     @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     @         WARNING: UNPROTECTED PRIVATE KEY FILE!          @
@@ -22,9 +22,9 @@
     ```
   * **可执行脚本失效**：脚本的 `+x` 标志在拷贝至其他介质时容易失效。
 
-### 1.2 生产级应对方案：归档解压原则
+### 1.2 应对方案：用归档保存权限
 * **严禁将 NTFS 外置盘作为工作区或密钥库直接运行**。
-* **归档保护法**：
+* **用 tar 归档**：
   * 在打包 SSH 密钥、私有 Git 配置时，使用 `tar` 打包：
     ```bash
     tar -cpf ssh-backup.tar id_ed25519 id_ed25519.pub config known_hosts
@@ -49,7 +49,7 @@ touch: cannot touch 'test': Read-only file system
 ### 2.2 根因分析
 * Windows 默认开启「快速启动」（Fast Startup / 混合休眠）。
 * 当 Windows 关机或拔出移动硬盘时，若未完全释放文件系统句柄，NTFS 日志中会打上**脏位（Dirty Bit）**，标记卷处于休眠或不一致状态。
-* Linux 内核及 FUSE NTFS 驱动为了保护数据不被破坏，**坚决拒绝以可写模式挂载已休眠的 NTFS 卷**，自动安全降级为只读（Read-Only）。
+* Linux 内核及 FUSE NTFS 驱动为了保护数据不被破坏，**拒绝以可写模式挂载已休眠的 NTFS 卷**，转为只读（Read-Only）挂载。
 
 ### 2.3 修复流程
 1. **Windows 侧根治**：

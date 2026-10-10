@@ -58,11 +58,16 @@
   这个目录已 gitignore，`git archive` 导不出去，`privacy-gate.sh` 也**跳过**它，
   所以里面可以放带真实路径和账户名的东西，不会把门禁搞成天天红。
   `tmp/.gitkeep` 是被跟踪的，新 clone 下来目录就在。
+- **没做完的内容和它的待办清单放在 `drafts/`，该目录只在私有仓库里。** 它在私有仓库中被跟踪
+  （跨机器同步、有备份），但**永不导出**：`tools/publish.sh` 在跑隐私门禁之前就把它从导出里删掉，
+  删不掉就拒绝继续；`privacy-gate.sh` 也像对 `tmp/` 一样跳过它。不要在其他文档里链接它，
+  链接到了公开仓库里会失效。凭据照样不能放进去。要发布某篇草稿，就把它移到该去的目录、
+  按 [`redaction.zh.md`](redaction.zh.md) 脱敏、再跑门禁。`drafts/README.md` 是索引，也是待办清单。
 - **发布前跑 `bash tools/privacy-gate.sh`**。它只覆盖已知形态，跑通不等于安全——`wsl/storage/forensics/` 是原始取证输出，必须人工读。
   账户名**不写在脚本里**（写进去，这个脚本自己就成了泄露源），运行时从 `tools/.privacy-names`（已 gitignore）读取。
 - **发布到公开仓库用 `bash tools/publish.sh`，不要手工 `cp -r`**。本仓库是**私有主仓 + 两个公开快照**：
-  [`vibe-pitfalls-notes`](https://github.com/Leonis03/vibe-pitfalls-notes) 是整棵树，
-  [`vibe-coding-pitfalls-skills`](https://github.com/Leonis03/vibe-coding-pitfalls-skills) 只有 skill
+  [`pitfall-harness`](https://github.com/Leonis03/pitfall-harness) 是整棵树，
+  [`pitfall-harness-skills`](https://github.com/Leonis03/pitfall-harness-skills) 只有 skill
   （`agent/skills/<name>/` → `skills/<name>/`，不含第三方的 `find-skills`，README 由脚本按各 skill 的
   frontmatter 生成）。两个公开仓各自有 `.git`，本机各 clone 一份，目录名随意：
 

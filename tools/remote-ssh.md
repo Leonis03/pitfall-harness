@@ -162,6 +162,41 @@ numpy 的 wheel 自带 OpenBLAS 并**按 CPU 运行时分派内核**，所以 AM
 
 ---
 
+## 8. 本地脚本里的 `ssh` 会把 heredoc 剩下的部分当成输入读走
+
+**症状**：`bash <<'EOF' ... EOF` 里第一条 `ssh` 之后的命令全都没有执行，也不报错，退出码 0。
+
+`ssh` 默认把本地的标准输入转发给远端命令。在 heredoc 脚本里，标准输入就是脚本本身，于是第一条 `ssh`（包括 `$(ssh ...)`）把后面的脚本全读走了。`while read ...; do ssh ...; done` 只跑一轮，是同一个原因。
+
+```bash
+bash <<'EOF'
+big=$(ssh -n node 'ls /data')                      # ✓ -n：标准输入接 /dev/null
+for h in a b c; do ssh -n $h 'hostname' & done; wait
+EOF
+```
+
+脚本里的 `ssh` 一律加 `-n`；只有确实要喂输入的（`ssh host 'cat > f' < file`）才不加。
+
+---
+
+## 9. `set -e` 加 `| grep`：没匹配到就中止整个脚本
+
+`cmd | grep 词` 的退出码是 `grep` 的：没匹配到就是 1，`set -e` 下脚本在这里停下。看起来像 `cmd` 失败了，其实它成功了，只是输出里没有要过滤的那个词——例如 `rsync --info=stats1` 的输出里没有 `transferred` 这个词，`| grep transferred` 就让后面的步骤全部没跑。
+
+只是为了少打印几行时写 `| grep ... || true`，或者先确认要过滤的词一定会出现。
+
+---
+
+## 10. `rsync` 拉回结果会覆盖本地更新过的文件
+
+`rsync -a remote:dir/ dir/` 以远端为准：远端是旧版本、本地后来重新生成过的文件，会被悄悄换回旧版本（`-a` 只看大小和修改时间，不同就传）。实际碰到过：本地重算过的报告差点被云端的旧报告覆盖，数字退回旧值。
+
+- 先预览：`rsync -a -n --itemize-changes ...`，看哪些**已有**文件会被改（`>f.st...` 这类行）；
+- 只要新文件：`--ignore-existing`；
+- 只覆盖比本地旧的：`--update`（按修改时间，前提是两边时钟可信）。
+
+---
+
 ## 相关
 
 - [`python/README.md`](python/README.md) —— urllib 代理绕过、f-string 引号规则

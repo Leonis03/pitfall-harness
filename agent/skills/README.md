@@ -64,7 +64,7 @@ bash ../../tools/sync-skills.sh deploy bx  # 只处理一个
 ## 公开发布
 
 除第三方的 `find-skills`、`skill-creator` 外，全部 skill 还会由 [`../../tools/publish.sh`](../../tools/publish.sh) 导出到公开仓库
-[vibe-coding-pitfalls-skills](https://github.com/Leonis03/vibe-coding-pitfalls-skills) 的 `skills/<name>/`，
+[pitfall-harness-skills](https://github.com/Leonis03/pitfall-harness-skills) 的 `skills/<name>/`，
 那边的 README 按各 skill 的 frontmatter 自动生成——所以 `description` 的第一句要能单独读懂。
 导出的是脱敏后的仓库原样，占位符不渲染。
 
@@ -89,7 +89,7 @@ bash ../../tools/sync-skills.sh deploy bx  # 只处理一个
 | `linux-cjk-font` | | ✅ | ✅ | | **if** WSL / Linux | WSL 先找 `/mnt/c/Users/*/.../Fonts`；Linux 退回 `/usr/share/fonts`，要装 `fonts-noto-cjk` 或文泉驿 |
 | `antigravity-cli` | | ✅ | ✅ | | **if** WSL / Linux（需装 agy） | 包装脚本是 bash；在 WSL 上实测（agy 1.2.11），Linux 上 agy 是原生二进制 |
 | `bx` | | ✅ | ✅ | | **if** WSL / Linux | 配方是 bash + `jq`，需要 `bx` CLI |
-| `deepln-setup` | | ✅ | ✅ | | **if** WSL / Linux（本地端） | 本地改 `~/.ssh/config`、跑 bash 脚本；远端是租来的 Linux GPU 机 |
+| `deepln-setup` | | ✅ | ✅ | | **if** WSL / Linux（本地端） | 本地改 `~/.ssh/config`、跑 bash 脚本；远端是租来的 Linux GPU / CPU 机 |
 | `gpu-cuda-checks` | | ✅ | ✅ | | **if** WSL / Linux（本地端） | 经 ssh 在远端 Linux GPU 机上检查 |
 | `docx-to-md` · `pdf-to-md` | | ✅ | ✅ | | **if** WSL / Linux | `uv run` 跑 Python 脚本 |
 | `download-bilibili` | | ✅ | ✅ | | **if** WSL / Linux | BBDown + ffmpeg，命令按 bash 写 |
@@ -97,6 +97,8 @@ bash ../../tools/sync-skills.sh deploy bx  # 只处理一个
 | `shuorenhua` | ✅ | ✅ | ✅ | ✅ | 任意平台 | 纯文字编辑，不跑命令 |
 | `find-skills` | ✅ | ✅ | ✅ | ✅ | 任意平台（需 Node） | 只调用 `npx skills` |
 | `github-coauthor-scrub` | | ✅ | ✅ | | **if** WSL / Linux（需 git、perl、`gh`） | bash 脚本；`refresh`、`verify` 走 GitHub API，要 `gh` 已登录 |
+| `export-wechat-chat` | ✅ | | | | **only if** Windows（微信 4.x） | 只读扫内存提 Config.Cipher，解密 WCDB/SQLCipher；也含微信 3.x 踩坑 |
+| `export-qq-chat` | ✅ | | | | **only if** Windows（QQ NT / PCNT） | 只读扫内存提 SQLCipher 密钥，解密 nt_msg.db，导出 TXT/JSON |
 | `skill-creator` | ✅ | ✅ | ✅ | | 任意平台（需 Python）；跑评测、优化描述 **only if** Claude Code | 起草、改写 skill 哪都能做；评测要派子 agent，描述优化要 `claude -p` |
 
 ## 装在哪

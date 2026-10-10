@@ -1,6 +1,6 @@
 # Windows Terminal 与 WSL / PowerShell 7 配置优化总结
 
-本文档汇总了本次关于 **Windows Terminal**、**PowerShell 7** 以及 **WSL (Ubuntu Zsh)** 路径继承、自动重定向、历史自动补全及环境配置的全部结论与实际改动记录。
+本文档记录 **Windows Terminal**、**PowerShell 7** 与 **WSL (Ubuntu Zsh)** 在路径继承、自动重定向、历史自动补全和环境配置上的结论与实际改动。
 
 ---
 
@@ -39,7 +39,7 @@
 
 ## 二、 对系统与配置文件的实际改动清单
 
-本次对话期间，已对你的本地系统及配置文件执行了以下实质性改动：
+对本地系统和配置文件做了以下改动：
 
 ### 1. PowerShell 7 配置文件修改
 * **目标文件**：`C:\Users\<your-windows-user>\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`

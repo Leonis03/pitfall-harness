@@ -1,7 +1,5 @@
 # Path Conversion and Windows Config Management
 
-When operating across the WSL-Windows boundary, path formats and configuration conventions differ significantly.
-
 ---
 
 ## 1. Path Conversion with `wslpath`

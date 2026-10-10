@@ -11,7 +11,7 @@
 
 ---
 
-## 2. 深度清除与 APT 永久锁死策略 (APT Pinning)
+## 2. 卸载 snapd 并用 APT Pinning 阻止重装
 
 ### 2.1 卸载 Snapd 与清理磁盘残留
 ```bash
@@ -31,13 +31,13 @@ Pin-Priority: -10
 
 * **优先级含义**：
   * `Pin-Priority < 0`：APT 绝对不会安装该软件包。
-  * 效果：运行 `apt-cache policy snapd` 时，候选版本显示为 `(无)`（None）。系统对任何形式的 Snap 依赖实现永久免疫。
+  * 效果：运行 `apt-cache policy snapd` 时，候选版本显示为 `(无)`（None）。系统不会再因依赖关系拉取 snapd。
 
 ---
 
 ## 3. 清华大学 TUNA 镜像站配置 (ARM64 架构避坑)
 
-### 3.1 致命架构陷阱：`ubuntu` vs `ubuntu-ports`
+### 3.1 架构差异：`ubuntu` vs `ubuntu-ports`
 * **x86_64 电脑**：Ubuntu 软件源目录为 `https://mirrors.tuna.tsinghua.edu.cn/ubuntu/`
 * **ARM64 平板**：Ubuntu 官方及其镜像站将非 x86 架构单独分流到了 **`ubuntu-ports/`** 目录！
 * 如果将 PC 上的换源教程直接搬到平板上（即配置了 `/ubuntu/`），执行 `sudo apt update` 时会全部报出 `404 Not Found`，提示找不到 `binary-arm64/Packages`。

@@ -7,14 +7,14 @@ argument-hint: "[smoke-test | table | custom-plot]"
 
 # WSL / Linux Python 中文字体打印与图像渲染技能指南
 
-在 WSL / Linux 环境下使用 Python 生成带中文的图表或图像时，通常会遇到以下 4 个典型问题：
+在 WSL / Linux 环境下使用 Python 生成带中文的图表或图像时，通常会遇到以下 5 个典型问题：
 1. **字形缺失与豆腐块方框（`UserWarning: Glyph ... missing`）**：Matplotlib 默认字体为 `DejaVu Sans`，不含中文字符。仅设置 `plt.rcParams['font.sans-serif'] = ['SimHei']` 在无 GUI 或 Linux 环境下会静默失效并回退为方块。
 2. **负号 `-` 乱码破损**：未设置 `plt.rcParams['axes.unicode_minus'] = False`，导致坐标轴负数符号渲染为方框。
 3. **多进程渲染字体丢失**：在 `joblib.Parallel` 或 `multiprocessing` 多进程绘图时，子进程未继承主进程内存中的字体注册状态，导致子进程静默回退到默认字体。
 4. **Pillow 制表符断裂与错位**：绘制 Unicode 表格边框（`┌──┬──┐`、`│`）时，由于默认 `spacing` 间距导致垂直竖线断节，且中英文字符宽度未严格按 2:1 计算导致列对齐错位。
 5. **盘符路径永远探测不到**：`Path("C:/Windows/Fonts/msyh.ttc").exists()` 在 WSL/Linux 下**恒为 `False`** —— 系统里没有 `C:` 盘，只有 `/mnt/c` 挂载点。在原生 Windows 上写好的代码搬到 WSL 后会找不到字体、静默回退 DejaVu Sans、输出豆腐块，**且完全不报错**。候选路径必须用 `/mnt/c/Windows/Fonts/...`（外加 Linux 本地字体兜底），并且**全部候选都落空时应直接抛异常**而不是返回默认字体 —— 静默回退往往等到图已经贴进论文才被发现。
 
-本技能提供了 WSL 环境下的自动中文字体探测引擎与经过实战检验的标准渲染模版（支持 **Matplotlib、Seaborn、Pillow、OpenCV**）。
+本技能提供了 WSL 环境下的中文字体查找函数与标准渲染模版（支持 **Matplotlib、Seaborn、Pillow、OpenCV**）。
 
 ---
 
@@ -30,7 +30,7 @@ uv run --with matplotlib --with pillow --with numpy python $HOME/.agents/skills/
 ```
 
 ### 1.2 将文本表格/代码直接转为高清图片
-将任意格式化文本、ASCII 制表符或终端输出渲染为精美 PNG 图片：
+将任意格式化文本、ASCII 制表符或终端输出渲染为 PNG 图片：
 ```bash
 # 从文件渲染
 uv run --with pillow python $HOME/.agents/skills/linux-cjk-font/scripts/table_to_image.py input.txt output.png --title "实验对比结果"
@@ -148,7 +148,7 @@ img.save("table_perfect.png")
 
 ## 4. OpenCV (cv2) 中文绘制桥接
 
-OpenCV 自带的 `cv2.putText` 不支持 CJK 中文，可通过 NumPy 与 Pillow 桥接实现零开销绘制：
+OpenCV 自带的 `cv2.putText` 不支持 CJK 中文，可通过 NumPy 与 Pillow 桥接绘制：
 
 ```python
 import numpy as np

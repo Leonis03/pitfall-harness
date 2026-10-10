@@ -3,26 +3,23 @@
 #
 # Production script deployed to: $HOME/.local/bin/debian
 # Supports:
-#   debian          # Enter interactive Debian root shell with private mount namespace
-#   debian --check  # Run comprehensive non-interactive health check
+#   debian                 # Enter interactive Debian root shell with private mount namespace
+#   debian --check         # Run comprehensive non-interactive health check
+#   debian --exec <cmd>    # Run command inside Debian container non-interactively
+#   debian -c <cmd>        # Run command inside Debian container non-interactively
+#
+# Rule: Keep pure ASCII in script logic and comments.
 
 set -Eeuo pipefail
 
 ROOT="${DEBIAN_ROOT:-$HOME/debian-trixie-minbase-install}"
-MODE="${1:-}"
 
 # If not already running as root inside private namespace, elevate via su and unshare -m
 if [[ "${1:-}" != "--root" ]]; then
-    case "$MODE" in
-        ""|--check) ;;
-        *) printf 'Usage: debian [--check]\n' >&2; exit 2 ;;
-    esac
-    ROOT_SCRIPT="$HOME/.local/bin/debian"
-    if [[ -n "$MODE" ]]; then
-        exec /data/data/com.termux/files/usr/bin/su -c "/system/bin/unshare -m '$ROOT_SCRIPT' --root '$MODE'"
-    else
-        exec /data/data/com.termux/files/usr/bin/su -c "/system/bin/unshare -m '$ROOT_SCRIPT' --root"
-    fi
+    ROOT_SCRIPT="${BASH_SOURCE[0]}"
+    [[ -x "$ROOT_SCRIPT" ]] || ROOT_SCRIPT="$HOME/.local/bin/debian"
+    ESCAPED_ARGS=$(printf '%q ' "$@")
+    exec /data/data/com.termux/files/usr/bin/su -c "/system/bin/unshare -m '$ROOT_SCRIPT' --root $ESCAPED_ARGS"
 fi
 shift
 MODE="${1:-}"
@@ -87,11 +84,18 @@ if [[ "$MODE" == "--check" ]]; then
             exec 3<>/dev/ptmx
             echo "PTY: OK"
         '
+elif [[ "$MODE" == "--exec" || "$MODE" == "-c" ]]; then
+    shift
+    exec /system/bin/chroot "$ROOT" /usr/bin/env -i \
+        HOME=/root \
+        PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        TERM="${TERM:-xterm-256color}" \
+        /bin/bash -c "$*"
+else
+    printf 'Entering Debian as root; Android host filesystem is available at /android.\n'
+    exec /system/bin/chroot "$ROOT" /usr/bin/env -i \
+        HOME=/root \
+        PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        TERM="${TERM:-xterm-256color}" \
+        /bin/bash -l
 fi
-
-printf 'Entering Debian as root; Android host filesystem is available at /android.\n'
-exec /system/bin/chroot "$ROOT" /usr/bin/env -i \
-    HOME=/root \
-    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    TERM="${TERM:-xterm-256color}" \
-    /bin/bash -l

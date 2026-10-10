@@ -7,14 +7,14 @@ argument-hint: "[smoke-test | table | custom-plot]"
 
 # WSL / Linux Python CJK Font Rendering Skill Guide
 
-Rendering Chinese (CJK) text and Unicode diagrams into images in WSL/Linux environments frequently encounters four notorious failures:
+Rendering Chinese (CJK) text and Unicode diagrams into images in WSL/Linux environments frequently encounters five common failures:
 1. **Missing Glyphs & Tofu Squares (`UserWarning: Glyph ... missing`)**: Matplotlib defaults to `DejaVu Sans` which contains zero CJK glyphs. Merely setting `plt.rcParams['font.sans-serif'] = ['SimHei']` fails silently in headless Linux because the font alias is not indexed in fontconfig.
 2. **Minus Sign Broken (`-` rendered as square)**: Missing `plt.rcParams['axes.unicode_minus'] = False`, causing negative axis coordinates and labels to corrupt.
 3. **Multi-Processing Font Reset**: In `joblib.Parallel` or `multiprocessing`, child worker processes do not inherit the parent's in-memory font cache, causing headless child workers to silently revert to DejaVu Sans.
 4. **Pillow Table Disconnection & Misalignment**: Unicode box-drawing characters (`┌──┬──┐`, `│`) break into dashed vertical gaps due to default line `spacing`, and columns misalign due to inaccurate half-width vs full-width (2:1) character calculations.
 5. **Drive-letter paths silently resolve to nothing**: `Path("C:/Windows/Fonts/msyh.ttc").exists()` is *always* `False` under WSL/Linux — there is no `C:` drive, only the `/mnt/c` mount. Code written on native Windows and moved to WSL therefore finds no font, falls back to DejaVu Sans, and emits tofu squares **without raising**. Always probe `/mnt/c/Windows/Fonts/...` (and a Linux-native fallback), and **raise if every candidate misses** rather than returning a default — a silent fallback is usually discovered only after the figures are already in the paper.
 
-This skill provides an automated font discovery engine and battle-tested rendering patterns for **Matplotlib, Seaborn, Pillow, and OpenCV** in WSL / Linux.
+This skill provides a font discovery helper and rendering patterns for **Matplotlib, Seaborn, Pillow, and OpenCV** in WSL / Linux.
 
 ---
 
@@ -173,7 +173,7 @@ def cv2_draw_chinese(cv2_bgr_img, text, pos, font_size=18, color_bgr=(255, 255, 
 
 | Priority | Font Name | Typical WSL Path | Characteristics |
 | :--- | :--- | :--- | :--- |
-| **1 (Best Monospace)** | **Sarasa Term SC** (更纱黑体) | `/mnt/c/Users/*/AppData/Local/Microsoft/Windows/Fonts/SarasaTermSC-Regular.ttf` | Perfect 2:1 CJK-to-ASCII width, flawless box drawing |
+| **1 (Best Monospace)** | **Sarasa Term SC** (更纱黑体) | `/mnt/c/Users/*/AppData/Local/Microsoft/Windows/Fonts/SarasaTermSC-Regular.ttf` | Perfect 2:1 CJK-to-ASCII width, continuous box drawing |
 | **2 (Best UI Font)** | **Microsoft YaHei** (微软雅黑) | `/mnt/c/Windows/Fonts/msyh.ttc` | Clean modern sans-serif, universal on Windows host |
 | **3 (Academic Standard)** | **SimHei** (黑体) / **SimSun** (宋体) | `/mnt/c/Windows/Fonts/simhei.ttf` / `simsun.ttc` | Classic standard fonts for papers and reports |
 | **4 (Linux OpenSource)** | **WenQuanYi Micro Hei** (文泉驿) | `/usr/share/fonts/truetype/wqy/wqy-microhei.ttc` | Standard Ubuntu/Debian CJK package (`fonts-wqy-microhei`) |
