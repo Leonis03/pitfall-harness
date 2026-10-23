@@ -4,7 +4,7 @@
 | :--- | :--- |
 | [`setup/`](setup/) | **新机器的 Windows 环境配置 runbook**：从刚装好的 LTSC 开始，配到终端、PowerShell、输入法、右键菜单、更新策略都就位。带强制流程（先探测 → 列清单 → 问可选项 → 再动手）。整份可以交给 Agent 执行 |
 | [`files/`](files/) | 可部署原件（`$PROFILE`、清理脚本、Update 策略 `.reg`） |
-| [`powershell/`](powershell/) | profile 功能文档（canonical：[`profile-features.md`](powershell/profile-features.md)）、中文命令 I/O 与报错语言（[`cjk-command-io.md`](powershell/cjk-command-io.md)）、用 shell 驱动 PowerShell 时自己骗了自己的地方（[`powershell-scripting-pitfalls.md`](powershell/powershell-scripting-pitfalls.md)）、优雅 / 强制关闭 Typora 并丢弃会话 |
+| [`powershell/`](powershell/) | profile 功能文档（canonical：[`profile-features.md`](powershell/profile-features.md)）、中文命令 I/O 与报错语言（[`cjk-command-io.md`](powershell/cjk-command-io.md)）、用 shell 驱动 PowerShell 时自己骗了自己的地方（[`powershell-scripting-pitfalls.md`](powershell/powershell-scripting-pitfalls.md)）、优雅 / 强制关闭 Typora 并丢弃会话；代理环境变量写入脚本（[`files/powershell/set-proxy-env.ps1`](files/powershell/set-proxy-env.ps1)，先探测端口再写） |
 | [`terminal/`](terminal/) | Windows Terminal：启动目录继承、System32 自动回家与 `OSC 9;9` 路径上报；无 Store 的 LTSC / 精简镜像如何侧载 winget 与 Terminal |
 | [`ime-keyboard/`](ime-keyboard/) | 输入法与键盘布局：卸载语言后残留的幽灵键盘布局（含排查）、搜狗首字母漏成英文的排查清单 |
 | [`context-menu/`](context-menu/) | 右键菜单项的排查与精简（含屏蔽 AMD Catalyst 扩展、Open in Terminal / Open in WSL） |

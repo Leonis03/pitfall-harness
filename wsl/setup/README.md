@@ -263,7 +263,7 @@ cp profile      ~/.profile
 
 | 位置 | 需要确认的内容 |
 | :--- | :--- |
-| 第 5 节 Proxy | 代理端口填 `<proxy-port>`（Clash Verge Rev）。不用代理就把整节注释掉 |
+| 第 5 节 Proxy | 端口**自动探测**：探测常用端口并用协议握手确认（HTTP CONNECT / SOCKS5 问候），只导出应答的那些；不用代理就把整节注释掉 |
 | VS Code 路径探测 | 候选列表含 `$USER` 与一个占位符，换机器可能要加自己的 Windows 用户名 |
 | 第 8 节 keyring | 仅 Antigravity CLI 需要；不用可删 |
 

@@ -191,6 +191,82 @@ git config --global http.version HTTP/1.1
 git config --global --get http.version
 ```
 
+> 这条只治 GnuTLS 握手那一种症状。本机 2026-10-23 实测：把 `http.version` 设成
+> `HTTP/1.1` **不能**解决下面的 `Connection was reset`——那是链路被干扰，不是协议
+> 协商失败。遇到 reset 先按第 3 节量，别急着改协议。
+
+### 3. 端点可达性不同：`api.github.com` 通不代表 `github.com` 通
+
+`gh` 走 `api.github.com`，`git` 走 `github.com` 的 smart-HTTP 端点
+（`/info/refs?service=git-upload-pack`）。这两个域名在同一台机器上的可达性
+**不是一回事**，于是会出现"`gh` 正常、`git` 连不上"——与工具本身无关。
+
+2026-10-23 12:32 前后实测（同一时刻，同一台机器）：
+
+| 目标 | 直连结果 |
+| :--- | :--- |
+| `https://api.github.com` | `HTTP/1.1 200 OK` |
+| `https://github.com`（网页根） | 无响应 |
+| `https://github.com/<repo>.git/info/refs?service=git-upload-pack` | 无响应 |
+| 同一个 git 端点经本地代理 | `HTTP/1.1 200 Connection established` |
+| `git ls-remote` 直连 | `Recv failure: Connection was reset`；另一次 `Failed to connect to github.com:443 after 21s` |
+| `git ls-remote` 经 `http.proxy` | 成功 |
+
+**而且它是间歇性的**：约一小时后，同一台机器上直连连续 4 次 `curl`、3 次 `git`
+全部成功。所以**一次失败的 fetch 不能证明配置错了**——先量再判：
+
+```bash
+# 绕开代理环境变量，看直连到底通不通
+env -u http_proxy -u https_proxy -u all_proxy \
+    -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
+    git ls-remote --heads origin main
+```
+
+### 4. git 不读 Windows 的系统代理
+
+Windows 的「系统代理」是 **WinINET 级**的（`HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`
+下的 `ProxyEnable` / `ProxyServer`），只有用 WinINET 的程序会读它（浏览器、.NET GUI
+应用）。**git 完全不读系统代理**：它只认自己的 `http.proxy` 配置，或
+`http_proxy` / `https_proxy` 环境变量。而 `netsh winhttp show proxy` 那一条还是
+`Direct access`（无代理），所以 `Invoke-WebRequest` 同样不会自动走系统代理。
+
+这就是「浏览器能开 GitHub、`git` 却连不上」的机制。`git` 要么显式配代理：
+
+```bash
+# 临时
+git -c http.proxy=http://127.0.0.1:<proxy-port> ls-remote --heads origin main
+
+# 全局
+git config --global http.proxy http://127.0.0.1:<proxy-port>
+```
+
+要么靠环境变量——但那又牵扯下一节。
+
+### 5. 环境变量是「启动那一刻的快照」
+
+`HKCU\Environment` 改过之后，**已经跑着的进程仍然拿着旧环境**，由它派生的子进程
+也一样。本机实测：桌面应用的子进程里 `HTTP_PROXY` 为空，于是它派生的 `git` 直连
+失败；同一台机器上，用户在终端里敲的 `git` 正常。
+
+刷新路径的作用范围各不相同：
+
+| 做法 | 作用范围 |
+| :--- | :--- |
+| `setx`（广播 `WM_SETTINGCHANGE`） | **之后新启动**的应用会拿到 |
+| 重启应用 / 注销重登 | 该应用自己拿到 |
+| **已经跑着的进程** | **拿不到**，必须重启它 |
+
+Windows 侧写这六个值（`ALL_PROXY`/`all_proxy`、`HTTP_PROXY`/`http_proxy`、
+`HTTPS_PROXY`/`https_proxy`）用
+[`../windows/files/powershell/set-proxy-env.ps1`](../windows/files/powershell/set-proxy-env.ps1)：
+它先探测端口是否真的在监听——端口没人监听时，变量会把每个走代理的请求变成立刻被拒，
+而直连其实通着——再写入，并广播 `WM_SETTINGCHANGE`。
+
+Linux 侧是同一个问题的另一面，见
+[`../agent/skills/android-chroot-debian/references/proxy-and-socket-pitfalls.md`](../agent/skills/android-chroot-debian/references/proxy-and-socket-pitfalls.md)：
+那里记的是「代理软件在宿主上、会被关掉」与「TUN 模式下根本没有端口可指」两种情况，
+处置同样是**先探测再决定要不要导出变量**。
+
 ---
 
 ## 五、清洗历史 Commit 中的真实邮箱 (git-filter-repo)

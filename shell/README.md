@@ -33,7 +33,8 @@ cp bashrc       ~/.bashrc
 cp profile      ~/.profile
 ```
 
-部署后要按本机调整的位置（代理端口、VS Code 探测、keyring）见 [`../wsl/setup/`](../wsl/setup/) 步骤 4。
+部署后要按本机调整的位置（VS Code 探测、keyring）见 [`../wsl/setup/`](../wsl/setup/) 步骤 4。
+代理端口不用手填：第 5 节会探测常用端口并用协议握手确认，只导出真正应答的那些。
 凭据放 `~/.shell_secrets`（`chmod 600`），`~/.shell_common` 末尾自动 source，永远不进版本库。
 
 ## 分层设计（先理解，再动手）
