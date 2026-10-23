@@ -61,6 +61,19 @@ function Write-Section {
     Write-Output "== $Title =="
 }
 
+# The UTC offset of this machine, in minutes. It comes from the registry, not
+# from the network, so it must not depend on whether an NTP server answered:
+# the event attribution below needs it to recognise a clock that was a whole
+# zone out at boot.
+function Get-ZoneOffsetMinutes {
+    $tz = Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' -ErrorAction SilentlyContinue
+    if (-not $tz -or $null -eq $tz.ActiveTimeBias) { return $null }
+    $bias = [int64]$tz.ActiveTimeBias
+    if ($bias -gt 2147483647) { $bias = $bias - 4294967296 }
+    # ActiveTimeBias is the UTC offset in MINUTES (UTC = local + bias).
+    return [math]::Abs($bias)
+}
+
 # Run a command with a bounded budget. Returns an object with two fields, so
 # a caller can tell "the command finished and said nothing" from "the command
 # never came back" -- the two need different words in the report.
@@ -139,6 +152,8 @@ if ($svc -and $svc.Status -eq 'Running') {
 # -------------------------------------------------------------- 3. the offset
 Write-Section 'Measured offset against NTP'
 
+$zoneMinutes = Get-ZoneOffsetMinutes
+
 $offsets = @()
 $usedServer = $null
 $failedServers = @()
@@ -170,6 +185,13 @@ if ($null -eq $usedServer) {
     $detail = ("{0}: " -f $usedServer) + (($offsets | ForEach-Object { "{0:+0.000;-0.000;0.000}s" -f $_ }) -join ', ')
     if ($failedServers.Count -gt 0) {
         $detail = $detail + ("  (unreachable: " + ($failedServers -join ', ') + ")")
+    }
+    # An offset that matches this machine's zone offset is not drift: it is the
+    # clock showing the wrong zone -- the RTC is being read under the wrong
+    # convention (RealTimeIsUniversal vs the Linux LocalRTC setting), or the
+    # display is showing UTC. Name it, so the finding points at the cause.
+    if ($zoneMinutes -and [math]::Abs($maxAbs - ($zoneMinutes * 60)) -le 120) {
+        $detail = $detail + ("  <-- this is the zone offset ({0} h): the clock is showing the WRONG ZONE, not drifting. The RTC is being read under the wrong convention -- check RealTimeIsUniversal here against LocalRTC on the other system" -f ($zoneMinutes / 60))
     }
     Add-Finding -Level $level -Check 'NTP offset' -Detail $detail
 }
@@ -275,27 +297,37 @@ if ($events) {
 
     if ($future.Count -gt 0) {
         # The question is "how far off was the clock when the machine came up?".
-        # Anchor: LastBootUpTime is reported in corrected time, and the first
-        # time-service event of the boot window was written with the clock
-        # still running fast. Their difference is the boot-time error.
+        # The anchor is the boot, but the attribution has to be careful: the
+        # events carry the clock as it was WHEN THEY WERE WRITTEN, which may be
+        # a different scale from the boot time (a clock that was later
+        # corrected) and may belong to an earlier boot entirely.
+        #
+        # An event belongs to the current boot when its stamp is within an
+        # hour of the boot time -- either directly, or shifted by exactly the
+        # zone offset (the boot happened while the clock was a whole zone
+        # out, and was corrected afterwards). Anything else is history.
         $first = $future | Sort-Object { $_.TimeCreated } | Select-Object -First 1
         $boot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
-        $size = $null
+        $zoneSeconds = 0
+        if ($null -ne $zoneMinutes) { $zoneSeconds = $zoneMinutes * 60 }
+        $gapMinutes = $null
+        $thisBoot = $false
         if ($boot) {
-            $gap = $first.TimeCreated - $boot
-            # The gap IS the error (the stamp ran ahead of the corrected boot
-            # time). It is plausible when it is positive and smaller than a
-            # full day -- a timezone-scale error, not a broken timestamp.
-            if ($gap.TotalHours -gt 0 -and $gap.TotalHours -lt 26) {
-                $size = ("{0:N2} h at boot (boot {1:yyyy-MM-dd HH:mm:ss}, first time-service event stamped {2:yyyy-MM-dd HH:mm:ss}, uncertainty = the few minutes between the two)" -f $gap.TotalHours, $boot, $first.TimeCreated)
-            }
+            $gapMinutes = ($first.TimeCreated - $boot).TotalMinutes
+            $candidates = @($gapMinutes)
+            if ($zoneSeconds -gt 0) { $candidates += ($gapMinutes - ($zoneSeconds / 60)); $candidates += ($gapMinutes + ($zoneSeconds / 60)) }
+            $thisBoot = @($candidates | Where-Object { [math]::Abs($_) -le 60 }).Count -gt 0
         }
-        if (-not $size) {
-            # No boot correlation: the stamp minus "now" is a lower bound only,
-            # because the error decays as the corrected clock keeps running.
-            $size = ("at least {0:N2} h (lower bound: the error decays with time, and the real write time is unknown)" -f (($first.TimeCreated - $now).TotalHours))
+        if ($thisBoot) {
+            $size = ("{0:N2} h at boot (boot {1:yyyy-MM-dd HH:mm:ss}, first time-service event stamped {2:yyyy-MM-dd HH:mm:ss}, uncertainty = the few minutes between the two)" -f ($gapMinutes / 60), $boot, $first.TimeCreated)
+            Add-Finding -Level 'FAIL' -Check 'Future-stamped events' -Detail ("{0} event(s) carry a timestamp later than now: the clock was running fast when they were written, {1}. An NTP sync corrected it later, which is why the clock looks right now. The RTC convention is the defect, not the sync." -f $future.Count, $size)
+        } else {
+            # $boot can be missing when CIM is unavailable; subtracting $null
+            # from a DateTime throws, and the whole finding would be lost.
+            $sinceBoot = 'an unknown number of hours'
+            if ($boot) { $sinceBoot = ("{0:N2} h from the current boot time" -f (($first.TimeCreated - $boot).TotalHours)) }
+            Add-Finding -Level 'INFO' -Check 'Future-stamped events' -Detail ("{0} event(s) carry a timestamp later than now, but they belong to an EARLIER boot (first at {1:yyyy-MM-dd HH:mm:ss}, {2}) -- the clock was corrected after that boot, which is why the stamps sit in the future. The current boot shows no such error." -f $future.Count, $first.TimeCreated, $sinceBoot)
         }
-        Add-Finding -Level 'FAIL' -Check 'Future-stamped events' -Detail ("{0} event(s) carry a timestamp later than now: the clock was running fast when they were written, {1}. An NTP sync corrected it later, which is why the clock looks right now. The RTC convention is the defect, not the sync." -f $future.Count, $size)
     }
 } elseif (-not ($findings | Where-Object { $_.Check -eq 'Event log' })) {
     Add-Finding -Level 'INFO' -Check 'Events' -Detail 'no time-service events in the window'

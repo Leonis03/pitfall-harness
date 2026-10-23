@@ -370,10 +370,10 @@ W: Failed to fetch https://downloads.typora.io/linux/./InRelease Could not conne
   sudo visudo -cf /etc/sudoers.d/proxy
   ```
 - **方案 B（APT 专属持久化代理配置）**：
-  在 `/etc/apt/apt.conf.d/99proxy` 中写入 APT 专属代理（配合 Clash Verge 规则模式，国内清华源命中 DIRECT，海外源命中 PROXY）：
+  在 `/etc/apt/apt.conf.d/99proxy` 中写入 APT 专属代理（配合 Clash 系客户端的规则模式，国内清华源命中 DIRECT，海外源命中 PROXY）：
   ```apt
-  Acquire::http::Proxy "http://127.0.0.1:7897";
-  Acquire::https::Proxy "http://127.0.0.1:7897";
+  Acquire::http::Proxy "http://127.0.0.1:<proxy-port>";
+  Acquire::https::Proxy "http://127.0.0.1:<proxy-port>";
   ```
 - **方案 C（单次临时透传）**：
   执行 `sudo -E apt update`（`-E` 参数指示 sudo 临时保留当前环境变量）。
