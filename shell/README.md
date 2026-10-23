@@ -73,6 +73,42 @@ cp profile      ~/.profile
 PATH 块。oh-my-zsh 用 `--unattended --keep-zshrc` 装；其余装完后检查 rc 尾部，把追加的块删掉——
 `PNPM_HOME`、`NVM_DIR` 已经在 `~/.shell_common` 里统一处理。
 
+## 验证配置时，`bash -lc` 和 `bash -ic` 解析出的 PATH 不一样
+
+Debian 的 `~/.bashrc` 开头会对**非交互** shell 直接 `return`
+（`case $- in *i*) ;; *) return;; esac`）。于是：
+
+| 调用形式 | 读到哪些文件 | `~/.shell_common` | node/nvm |
+| :--- | :--- | :---: | :---: |
+| `bash -ic ...` 交互 | `.bashrc` | ✅ | ✅ |
+| `bash -lc ...` 登录但非交互 | `.profile` → `.bashrc`（立刻 return） | ❌ | ❌ 回落到 `/usr/bin/node` |
+| `bash -c ...` 纯非交互 | 都不读 | ❌ | ❌ |
+
+同一条 `bash -l`，只差一个 `-i`，node 版本就能是反的。实测同一天里
+`bash -ic` 是 v24、`bash -lc` 是 v22，两边都"看起来对"，只有对照才发现矛盾。
+
+**为什么值得记**：这不是配置的问题，是**验证方法**的问题。
+用一种调用形式验证、在另一种形式里使用，就会得出"配置没生效"的错误结论，
+然后去反复修改本来完全正确的配置——本次会话里就是这么把结论带偏的。
+
+验证 shell 相关配置时，**用跟你实际使用它的方式一致的调用形式**：
+
+- 终端里手敲 → `bash -ic`
+- 脚本 / CI / agent 子进程 → `bash -c`，此时应当靠 `BASH_ENV` 兜住（见上面硬规则 3）
+- 登录会话 → `bash -lic`
+
+另外，**已经在跑的进程不受 rc 改动影响**。会话是在它启动那一刻就把环境快照下来的，
+之后改 `.bashrc` / `.shell_common` / `/etc/passwd` 都不会回灌。要确认某个**活着的**进程
+看到的环境，直接读它自己的 environ：
+
+```bash
+tr '\0' '\n' < /proc/$(pgrep -x lxqt-session)/environ | grep '^SHELL='
+```
+
+桌面会话里还有第三层：`/etc/passwd` 只是登录 shell 的**默认值**，任何在会话启动前
+`export SHELL=...` 的脚本都能把它盖掉，而且完全静默。见
+[`../honor-linuxlab/README.md`](../honor-linuxlab/README.md) 2.4。
+
 ## System32 自动回家
 
 `~/.shell_common` 第 1 节：shell 启动时若当前目录在 `/mnt/<盘>/windows/system32` 或 `syswow64` 下，

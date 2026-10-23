@@ -4,10 +4,12 @@
 
 | 文件 | 内容 |
 | :--- | :--- |
-| [`wsl-distro-move-to-d-drive.md`](wsl-distro-move-to-d-drive.md) | 把发行版的 `ext4.vhdx` 从 C 盘迁到 D 盘：`wsl --manage --move` 优先，导出/导入兜底 |
+| [`wsl-distro-move-to-d-drive.md`](wsl-distro-move-to-d-drive.md) | 把发行版的 `ext4.vhdx` 从 C 盘迁到 D 盘：`wsl --manage --move` 优先，导出/导入兜底；**系统重装后复用已有 vhdx** 走同一篇的「复用已有的 ext4.vhdx」一节（`wsl --import-in-place` + 导入前的 ACL 归一化 + WSL 本体重装） |
 | [`pnpm-npm-cleanup-20260920.md`](pnpm-npm-cleanup-20260920.md) | pnpm 12 / npm 双端空间清理，以及 pnpm 10+ 默认拦掉 postinstall 的坑 |
 
-VHDX 压缩回收空间见 skill [`../../agent/skills/compress-wsl-space/`](../../agent/skills/compress-wsl-space/)。
+回收 vhdx 空间：**WSL 3.0 起**用 `wsl --manage <Name> --compact`（先 `fstrim`、再 `wsl --shutdown`），
+不用再走 `Optimize-VHD -Mode Full`，见 [`../setup/README.md`](../setup/README.md) 的「维护：回收 vhdx 空间」。
+旧版 WSL 仍用 skill [`../../agent/skills/compress-wsl-space/`](../../agent/skills/compress-wsl-space/)。
 
 ## 取证记录（只读，别照做）
 

@@ -1,6 +1,6 @@
 # Skills
 
-21 个 skill，同时供 Claude Code（`~/.claude/skills/`）与 Antigravity（`~/.gemini/config/skills/`）使用，也可以装在 `~/.agents/skills/`。
+25 个 skill，同时供 Claude Code（`~/.claude/skills/`）与 Antigravity（`~/.gemini/config/skills/`）使用，也可以装在 `~/.agents/skills/`。
 两边装的集合不同（见下表），但凡是两边都有的，内容保持一致。
 
 ## 部署与核对：不能直接 cp
@@ -19,6 +19,20 @@ bash ../../tools/sync-skills.sh            # 核对：比对"渲染后"的字节
 bash ../../tools/sync-skills.sh deploy     # 部署：展开占位符后写入两个部署位
 bash ../../tools/sync-skills.sh deploy bx  # 只处理一个
 ```
+
+### `deploy` 在原生 Windows 上会失败
+
+2026-10-17 实测：Windows 的 Git Bash **不带 `rsync`**，`deploy` 走到写文件那步会报
+`rsync: command not found` 然后停住——**核对模式不用 rsync，所以这个失败是半静默的**：
+同一个脚本几分钟前还报告某个 skill 一切正常，下一刻部署却挂了。
+
+WSL 的 Debian 里有 `rsync`（`/usr/bin/rsync`），在 WSL 里跑脚本是正常的——但那里 `$HOME`
+是 WSL 的家目录，写进去的是 **WSL 部署位**，不是 Windows 的 `%USERPROFILE%`。
+
+第二条出路是直接复制，**但只对纯占位符的 skill 成立**：既有 `<your-*>` 又有 `.sync-map`
+键时，渲染是恒等变换，`cp` 与脚本逐字节一致。`distill-session` 2026-10-17 就是这样部署的，
+之后 `sync-skills.sh` 核对报 `all match (modulo redaction)`。**带占位符的照旧必须走脚本**，
+否则 `<your-home>` 会被原样写进部署位。
 
 占位符 → 真值的映射在 `tools/.sync-map`（已 gitignore，理由同 `.privacy-names`：
 值不写进脚本，脚本本身才能公开）。哈希相同的含义因此是**"仓库 ≡ 部署位，模脱敏"**。
@@ -80,17 +94,19 @@ bash ../../tools/sync-skills.sh deploy bx  # 只处理一个
 | skill | Windows | WSL | Linux | Android | 条件 | 依据 |
 | :--- | :---: | :---: | :---: | :---: | :--- | :--- |
 | `wsl-windows-command` | | ✅ | | | **only if** WSL | 全靠 WSL interop：`/mnt/c`、`.exe`、`wsl.exe` |
-| `compress-wsl-space` | ✅ | | | | **only if** Windows（装了 WSL2） | 在管理员 PowerShell 里跑 `Optimize-VHD`；WSL 里只做 `fstrim` |
+| `compress-wsl-space` | ✅ | | | | **only if** Windows（装了 WSL2） | WSL 3.x 用 `wsl --manage <Name> --compact`（无需提权）；2.x 才退回管理员 PowerShell 里的 `Optimize-VHD -Mode Full` |
 | `android-chroot-debian` | | | | ✅ | **only if** Android（root + Termux） | 在 Termux 的 root chroot 里运行，依赖 Android 的挂载点与 `unshare` |
 | `termux-debian-external-drive` | | | | ✅ | **only if** Android（root + Termux） | vold、`/mnt/media_rw`、`nsenter -t 1` |
 | `android-miui-settings` | | | | ✅ | **only if** Android（root + Termux） | 穿透 Android 宿主 Mount Namespace (`nsenter -t 1 -m`) 调取 `settings` 与 DoT 私人 DNS |
 | `honor-linuxlab` | | ✅ | ✅ | ✅ | **only if** 手边有荣耀平板 | 目标是平板里的 PRoot 容器；命令从电脑端用 `adb shell` 注入 |
 | `video-to-md` | ✅ | ✅ | ✅ | | **only if** Antigravity | 视频靠 agy 的 `view_file` 读；Claude Code 没有等价工具，所以只装 `.gemini` |
 | `linux-cjk-font` | | ✅ | ✅ | | **if** WSL / Linux | WSL 先找 `/mnt/c/Users/*/.../Fonts`；Linux 退回 `/usr/share/fonts`，要装 `fonts-noto-cjk` 或文泉驿 |
+| `linux-disk-cleanup-backup` | | ✅ | ✅ | | **if** WSL / Linux | 清理脚本是 bash + `du`/`find`/`dpkg-query`/`rpm`，只读且跨发行版；三种模式（日常维护 / 归档式清理 / 备份到移动硬盘）。备份实测的是 WSL → NTFS（drvfs 需 `metadata`），原生 Linux 那份还是骨架 |
 | `antigravity-cli` | | ✅ | ✅ | | **if** WSL / Linux（需装 agy） | 包装脚本是 bash；在 WSL 上实测（agy 1.2.11），Linux 上 agy 是原生二进制 |
 | `bx` | | ✅ | ✅ | | **if** WSL / Linux | 配方是 bash + `jq`，需要 `bx` CLI |
 | `deepln-setup` | | ✅ | ✅ | | **if** WSL / Linux（本地端） | 本地改 `~/.ssh/config`、跑 bash 脚本；远端是租来的 Linux GPU / CPU 机 |
 | `gpu-cuda-checks` | | ✅ | ✅ | | **if** WSL / Linux（本地端） | 经 ssh 在远端 Linux GPU 机上检查 |
+| `hf-cn-download` | | ✅ | ✅ | | **if** WSL / Linux | 配方是 bash + `env -u` 剥代理；针对桌面代理开着时从 hf-mirror 这类境内可达镜像站下模型 |
 | `docx-to-md` · `pdf-to-md` | | ✅ | ✅ | | **if** WSL / Linux | `uv run` 跑 Python 脚本 |
 | `download-bilibili` | | ✅ | ✅ | | **if** WSL / Linux | BBDown + ffmpeg，命令按 bash 写 |
 | `inspect-session` · `trim-branch` | | ✅ | ✅ | | **if** WSL / Linux | 读 `~/.claude/projects` 下的会话 JSONL，Python 脚本 |
@@ -99,6 +115,8 @@ bash ../../tools/sync-skills.sh deploy bx  # 只处理一个
 | `github-coauthor-scrub` | | ✅ | ✅ | | **if** WSL / Linux（需 git、perl、`gh`） | bash 脚本；`refresh`、`verify` 走 GitHub API，要 `gh` 已登录 |
 | `export-wechat-chat` | ✅ | | | | **only if** Windows（微信 4.x） | 只读扫内存提 Config.Cipher，解密 WCDB/SQLCipher；也含微信 3.x 踩坑 |
 | `export-qq-chat` | ✅ | | | | **only if** Windows（QQ NT / PCNT） | 只读扫内存提 SQLCipher 密钥，解密 nt_msg.db，导出 TXT/JSON |
+| `run-sql-file` | ✅ | ✅ | | | **only if** 有 SQL Server 实例的机器 | Windows 侧 sqlcmd 11，WSL 侧换 `mssql-tools18`；`go-sqlcmd` 会把中文列别名按字节截断，不能用 |
+| `distill-session` | ✅ | ✅ | ✅ | ✅ | 任意平台（需这个仓库的副本 + git） | 会改仓库的文件，所以先证伪再落笔；`scripts/verify-change.sh` 跑机械检查。它只改文件，不部署、不发布 |
 | `skill-creator` | ✅ | ✅ | ✅ | | 任意平台（需 Python）；跑评测、优化描述 **only if** Claude Code | 起草、改写 skill 哪都能做；评测要派子 agent，描述优化要 `claude -p` |
 
 ## 装在哪
@@ -107,14 +125,29 @@ bash ../../tools/sync-skills.sh deploy bx  # 只处理一个
 
 | skill | WSL 机 `.claude` | WSL 机 `.gemini` | Linux 桌面 `.claude` | Linux 桌面 `.gemini` |
 | :--- | :---: | :---: | :---: | :---: |
-| `antigravity-cli` · `bx` · `deepln-setup` · `find-skills` · `gpu-cuda-checks` · `honor-linuxlab` · `inspect-session` · `shuorenhua` · `trim-branch` | ✅ | ✅ | ✅ | ✅ |
+| `antigravity-cli` · `bx` · `deepln-setup` · `distill-session` · `find-skills` · `gpu-cuda-checks` · `honor-linuxlab` · `inspect-session` · `shuorenhua` · `trim-branch` | ✅ | ✅ | ✅ | ✅ |
 | `docx-to-md` · `download-bilibili` · `pdf-to-md` | — | ✅ | ✅ | ✅ |
 | `video-to-md` | — | ✅ | — | ✅ |
 | `android-chroot-debian` · `termux-debian-external-drive` · `android-miui-settings` · `wsl-windows-command` | ✅ | ✅ | — | — |
 | `linux-cjk-font` | — | ✅ | — | — |
+| `linux-disk-cleanup-backup` | — | — | — | — |
 | `compress-wsl-space` | — | — | — | — |
 | `github-coauthor-scrub` | — | — | ✅ | ✅ |
+| `hf-cn-download` | — | — | — | — |
+| `run-sql-file` | — | — | — | — |
 | `skill-creator` | — | — | —（插件已提供） | ✅ |
+
+- Windows 机是第三个部署目标，`.agents` / `.claude` / `.gemini` 三个目录都还没建，
+  所以上表它在每一栏都是 `—`。`run-sql-file` 是这台机器上的第一个 skill，
+  但它要 SQL Server 实例才用得上，本机没装，属于「已入库、未部署、暂不可用」。
+
+- `linux-disk-cleanup-backup` 是新入库的，四栏都是 `—`：清理脚本只用发行版自带的 `du` / `find` /
+  `dpkg-query` / `rpm`，WSL 与原生 Linux 都用得上，但装不装由各台机器自己决定——
+  磁盘吃紧的机器才需要它，重装前要备份的机器则用它的备份那一半。
+  `references/backup-linux-desktop.md` 还是骨架，WSL 那份（`backup-wsl-ntfs.md`）才实测过。
+- `hf-cn-download` 同属「已入库、未部署」。它的前提是**这台机器真的开着本地代理**——
+  Linux 桌面机开着 Clash Verge Rev，WSL 机则取决于当时是否转发；两边都没装的话，
+  上层文档里的 `env -u` 配方无害但用不上。要装的话按下面的方式手动建目录再 deploy。
 
 - Linux 桌面两栏是 2026-09-28 按上面的规则装的：Android、WSL 专属的都不装；`linux-cjk-font`（原名
   `wsl-cjk-font`）在原生 Linux 上也能用，但这台机器用不上，没装；`video-to-md` 不进 `.claude`，因为读视频靠的是 agy 的 `view_file`。

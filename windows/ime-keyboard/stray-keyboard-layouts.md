@@ -31,11 +31,19 @@ the original script (2025-10-15) logged both `HKU:` keys as `<missing>` for this
    `Settings -> Time & language -> Language & region -> Add a language`, add the ghost
    language (e.g. German); open its `Language options`, remove the keyboard; then remove the
    language itself. Repeat per language.
-2. **Script:** `fix-keyboard-layouts.ps1` (this directory). It prints the four keys, resets
-   the language list with `Set-WinUserLanguageList`, exports the keys to `.reg` backups,
-   deletes Preload / Substitutes values outside the keep list, and warns about sync.
+2. **Script:** [`fix-keyboard-layouts.ps1`](../files/ime-keyboard/fix-keyboard-layouts.ps1)
+   (lives under `files/`, not next to this note -- originals live there, docs here). It prints
+   the four keys, exports them to `.reg` backups, resets the language list with
+   `Set-WinUserLanguageList`, deletes Preload / Substitutes values outside the keep list, and
+   warns about sync.
    `-Keep "ja-JP"` adds tags to the keep list (`en-US` is always kept). Restore a backup with
    `reg import <file>.reg`.
+
+   The export runs **before** the reset, and that order is load-bearing.
+   `Set-WinUserLanguageList -Force` rewrites `Preload` itself, so an export taken afterwards
+   already holds the cleaned value and restores nothing. The script exported second until
+   2026-10-17; on the machine below both generated backups came out byte-identical
+   (`"1"="00000409"`) and only the transcript preserved the original state.
 3. Reboot, then recheck the switcher.
 
 ## Cloud sync re-adds them
@@ -53,6 +61,14 @@ plus `00000409`.
 The `lpksetup /u` step and the Substitutes cleanup were not observed to do anything there.
 For the German / Greek / Russian ghosts (2025-10-07) only the manual steps in 1 were
 written down; the notes do not record the final outcome.
+
+The script ran again on 2026-10-17 (Windows 11 IoT Enterprise LTSC 24H2, 26100.9711) and
+this time the removal was total: it dropped `zh-Hans-SG`, which carried Sogou Pinyin and
+Microsoft Pinyin as input method tips, and left both `Preload` keys holding a single
+`00000409`. `Substitutes` was already empty on both keys, `lpksetup /u` skipped all three
+packs as not installed, and language preference sync was already off. Keep in mind what
+"keep en-US only" costs -- restoring Chinese input means adding the language back and
+re-running with `-Keep`, otherwise the new layout is read as a ghost and deleted again.
 
 ## Related
 

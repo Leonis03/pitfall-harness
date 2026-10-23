@@ -38,6 +38,17 @@ PATH 块（重复过两次、且硬编码）· binfmt 守护单元（Ubuntu 侧�
 
 ## 一、systemd ≥ 256 在 WSL 上起不了 user session
 
+> **2026-10-17 出现反例，本节结论需要收窄。** 在 **Debian 13**（systemd 257.13-1~deb13u1）、
+> WSL 3.0.1.0、内核 **6.18.40.1** 上实测：`systemctl --user is-system-running` 返回 `running`，
+> `/run/user/1000` 存在，依赖 user session 的东西（fcitx5 自启、用户级 service）正常。
+>
+> **但这台的内核也一起换了**（6.18.40.1 vs 当时的 6.18.33.1），变量没有隔离：既可能是内核侧
+> 修好了根 cgroup 布局，也可能只是这台不存在那 19 个幽灵条目。在同一条内核上重做一次
+> 255 / 257 的受控对比之前，请把本节读作「**在 6.18.33.x 上实测成立**」，
+> 而不是「systemd ≥ 256 一律不可用」。
+>
+> 操作建议不受影响：**不要为了 user session 去降级发行版**（理由见本节末尾）。
+
 ### 症状
 
 发行版启动时报：
@@ -108,6 +119,7 @@ done
 | Ubuntu 24.04 LTS | 255 | 可用 |
 | Fedora 40 | 255 | 可用，但已 EOL |
 | Fedora 41 / 42 / 43 / 44 | 256 / 257 / 258 / 259 | 全部中招 |
+| Debian 13 (trixie) | 257 | **可用**——但实测在内核 6.18.40.1 上，见本节开头的反例说明 |
 
 **不建议为此回退发行版。** 唯一能用的 Fedora 是 40，已停止安全更新——拿"没有 CVE 补丁"换"user session 能起来"不划算。要保守的 RPM 系应该选 AlmaLinux / Rocky（9.x 是 systemd 252），而不是老 Fedora。
 
@@ -442,3 +454,61 @@ Layout=
 | 步骤 7 只要「装包 + `fcitx5 -d`」 | **不完整**。还缺 session D-Bus，否则有进程无输入法；且拼音默认没进输入法组 |
 | `PATH` 里仍有 41 条 `/mnt/c`，需 `wsl --shutdown` 才生效 | **已过期**。接手时 `wsl.conf` / `fstab` 早已生效（`/mnt/c` 计数为 **0**，C/D/E 已按 fstab 挂好），**没有执行任何 shutdown** |
 | 基础包清单 | **不全**。漏了 `gawk`、`xz`（nvm 因此直接失败） |
+
+---
+
+## 五、Debian 13 (trixie)
+
+2026-10-17 实测。WSL 3.0.1.0，内核 6.18.40.1-microsoft-standard-WSL2，systemd 257.13-1~deb13u1。
+这台是系统重装后用 `wsl --import-in-place` 复用旧 vhdx 恢复的，环境从
+[`../storage/wsl-distro-move-to-d-drive.md`](storage/wsl-distro-move-to-d-drive.md) 的「复用已有 vhdx」一节来。
+
+### 5.1 原样可用的部分
+
+| 步骤 | 实测结论 |
+| :--- | :--- |
+| 步骤 1（`wsl.conf` / `fstab` / binfmt 守护 / `/mnt/wsl` 守护） | 与发行版无关。live `/etc/wsl.conf` 与 [`../setup/files/wsl.conf`](setup/files/wsl.conf) 逐行一致（只差原件的 `<your-linux-user>` 已被替换成本机用户名）；`fstab` 就是 [`../setup/files/fstab`](setup/files/fstab) 把 `<Distro>` 替换后的结果 |
+| 步骤 3、4（四层 shell 配置） | 六个文件全在，**一个字没改**。`zsh -c` / `bash -c` 非交互下 `reg` `powershell` `cmd` `clip` 四个函数齐全，`BASH_ENV` 指向 `$HOME/.shell_wslfn`，与主桌面对齐 |
+| 步骤 5、6（工具链） | nvm + pnpm 12 独立脚本 + uv 的装法通用。`git` / `gh` 用 Debian 仓库版（2.47.3 / 2.46.0），没有 PPA |
+| 4.8 的 fcitx5 绕路 | **不需要**。本节第一处反例：`systemctl --user` 正常，`~/.zshrc` 沿用主桌面的写法即可，没有那 52 行 Fedora 专属块 |
+
+### 5.2 wslu 同样缺失，`wslview` 走同一份原件
+
+`dpkg-query -l wslu` → 没有包；`command -v wslview` → `~/.local/bin/wslview`（即 `/home/<your-linux-user>/.local/bin/wslview`）。
+也就是说 **Debian 和 Fedora 落在同一边**，都是 [`setup/files/bin/wslview`](setup/files/bin/wslview) 那个自建脚本。
+实测该 live 文件与仓库原件 sha256 完全一致（`7241fbd9…`），可以直接照抄步骤 4 的表。
+
+`BROWSER` 的坑与 4.7 同源：`~/.shell_common` 里是带守卫的 `export BROWSER=wslview`，
+指向真实可执行文件，**不是** `shell_wslfn` 里的函数——`gh` 走 `exec.LookPath`，函数不可见。
+
+### 5.3 apt 换源：文件名和格式都不同
+
+Debian 13 **没有 `/etc/apt/sources.list`**，只有 deb822 格式的
+`/etc/apt/sources.list.d/0000debian.sources`（同目录还有 `.bak`，说明之前有人改过）。
+本机已指向清华 TUNA：
+
+```
+URIs: https://mirrors.tuna.tsinghua.edu.cn/debian
+Suites: trixie trixie-updates trixie-backports
+Components: main
+URIs: https://mirrors.tuna.tsinghua.edu.cn/debian-security
+Suites: trixie-security
+Components: main
+```
+
+`setup/README.md` 步骤 2 那条 `sed` 打的是 `ubuntu.sources` 且按 one-line 源写，
+**在 Debian 上一条也匹配不到**。这次没有实际改动源配置（已经是 TUNA），因此改法本身未实测。
+
+### 5.4 两处外观异常，都不是故障
+
+- **`systemctl is-system-running` 恒为 `degraded`**，唯一 failed 的是 `systemd-binfmt.service`。
+  原因是它被 `ConditionDirectoryNotEmpty` 门控在五个空的 `binfmt.d` 目录上，unit 被跳过但状态记成 failed；
+  `/proc/sys/fs/binfmt_misc/WSLInterop` 存在，互操作一切正常。见 `setup/README.md` 常见问题一节。
+- **`/mnt/wsl/Debian` 这条 bind 在 `/etc/fstab` 里是注释掉的**（单发行版机器，故意为之）。
+  `wsl-mount-guard.timer` 每个 30 秒周期读一遍 fstab、什么也没匹配到、`exit 0` 空跑。
+  所以 `setup/README.md` 验证清单第 12 条的 `findmnt` 在这台不打印任何东西。
+
+### 5.5 Python：系统版与 uv 管理的版本各是一套
+
+`/usr/bin/python3` 是 **3.13.5**（留给 OS 包），uv 另装 3.10 / 3.12 于
+`~/.local/share/uv/python/`。与主桌面同一条约定，**没有例外**：不要为了项目版本去动系统 `python3`。

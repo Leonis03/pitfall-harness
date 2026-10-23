@@ -130,7 +130,10 @@ _path_prepend "$HOME/.local/bin"          # Antigravity CLI (agy), pipx, uv tool
 export PNPM_HOME="$HOME/.local/share/pnpm"
 _path_prepend "$PNPM_HOME/bin"
 
-[ -d "$HOME/.minimax-code/bin" ] && _path_prepend "$HOME/.minimax-code/bin"
+# AI harness data dir. The name changed (.minimax-code -> .minimax); the -d
+# guard means a stale name fails SILENTLY, so keep this in sync with whatever
+# the running harness reports as its activeDataDir.
+[ -d "$HOME/.minimax/bin" ] && _path_prepend "$HOME/.minimax/bin"
 
 # Guarded: exporting a JAVA_HOME that does not exist breaks tools that trust it
 if [ -d /usr/lib/jvm/default-java ]; then
@@ -158,6 +161,27 @@ export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
 # refused -- with nothing here to suggest the cause is a file on the Windows
 # side. If you are on NAT, derive the host from the default route instead:
 #   host_ip=$(ip route show default | awk '/default/ {print $3}')
+#
+# TWO THINGS THAT DO NOT PORT TO ANOTHER ENVIRONMENT:
+#
+# 1. ONE PORT SERVING BOTH PROTOCOLS. 7897 is a MIXED port, so HTTP and
+#    SOCKS5 are the same socket. A proxy that listens on two separate ports
+#    (one HTTP, one SOCKS5) needs two variables: ALL_PROXY pointed at the
+#    HTTP port fails with "Connection reset by peer", because that port only
+#    answers HTTP CONNECT. Test which is which before assuming:
+#      curl -x http://127.0.0.1:<p>      <url>   # HTTP?
+#      curl -x socks5h://127.0.0.1:<p>   <url>   # SOCKS5?
+#    One port per variable, even when they happen to be equal.
+#
+# 2. THE PROXY MAY VANISH. Here Clash Verge runs on Windows and stays up.
+#    Where the proxy is a switchable app (an Android proxy app, a container
+#    that gets stopped), the port is only reachable while it runs. Exporting
+#    the variables unconditionally then breaks every proxied request the
+#    moment it is switched off -- refused, with a direct connection working
+#    fine. Probe the port before relying on it, and keep NO_PROXY either way:
+#      timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/<port>' && echo OPEN || echo refused
+#    (/dev/tcp is bash-only; call bash explicitly under zsh.)
+#    Background: agent/skills/android-chroot-debian/references/proxy-and-socket-pitfalls.md
 # ------------------------------------------------------------------------------
 export host_ip="127.0.0.1"
 export proxy_port="7897"
@@ -177,7 +201,7 @@ export all_proxy="socks5h://${host_ip}:${proxy_port}"
 # empty HTTP 502, which reads like an ordinary request failure rather than
 # "nothing is listening" -- an easy hour to lose. A bare "*" is special-cased
 # and does bypass everything, but "127.*" does not. Verified 2026-09-19 on
-# CPython 3.12.14.
+# CPython 3.12.14, re-verified unchanged 2026-10-17 on CPython 3.12.15.
 export NO_PROXY="localhost,127.0.0.1,::1,.local"
 export no_proxy="localhost,127.0.0.1,::1,.local"
 

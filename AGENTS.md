@@ -6,7 +6,7 @@ One person's dev-environment config, agent skills, and debugging notes, across s
 
 - Windows 11 + WSL2 (Ubuntu 24.04, migrating to Fedora 44)
 - a native Linux desktop (Linux Mint 22)
-- Android (Termux root chroot, Honor tablet Linux Lab) -- covered only by skills
+- Android (Termux root chroot, Honor tablet Linux Lab) -- `honor-linuxlab/` plus skills
 - rented cloud GPU boxes (DeepLN) -- covered only by skills
 
 This repo treats the AI agent as a **system operator**. Humans define goals in natural language,
@@ -44,8 +44,11 @@ stays private (see below).
 | `wsl/gui-ime/` | WSLg GUI apps, fcitx5 | -- |
 | `wsl/storage/` | disk guides; `forensics/` = raw evidence from one incident, read-only history | -- |
 | `linux-desktop/` | Mint desktop notes (sections 2.x) and `gui-and-ime.md` (Fcitx5, Rime, fonts, tools, pnpm); `files/` = Ghostty, Nemo, fontconfig, pnpm originals | `~/.config/ghostty/config`, `~/.local/share/nemo/actions/`, `/etc/fonts/conf.avail/`, `~/.config/pnpm/` |
-| `windows/` | Terminal, PowerShell (incl. Typora close/kill scripts), IME / keyboard layouts, context menu, Windows Update | `$PROFILE` (`Microsoft.PowerShell_profile.ps1`), `.reg` imports |
-| `agent/claude-code/` | `settings.json`, `claude-global.md`, `statusline-command.sh` | `~/.claude/` (`claude-global.md` -> `~/.claude/CLAUDE.md`) |
+| `honor-linuxlab/` | Honor tablet Linux Lab (PRoot): what the vendor docs and the vendor assistant never cover; `docs-gap.md` = unit-by-unit comparison against the bundled guide; `files/` = fingerprint script | -- |
+| `windows/` | `setup/` = the LTSC setup runbook (hand the whole file to an agent); `files/` = deployable originals; plus Terminal, PowerShell (incl. Typora close/kill scripts), IME / keyboard layouts, context menu, Windows Update | `$PROFILE` (`Microsoft.PowerShell_profile.ps1`), `.reg` imports |
+| `agent/claude-code/` | `settings.json`, `claude-global.md`, `statusline-command.sh`, `files/claude-wrapper.sh` | `~/.claude/` (`claude-global.md` -> `~/.claude/CLAUDE.md`); `files/claude-wrapper.sh` -> `~/.local/bin/claude` |
+| `agent/minimax-code/` | `agents-windows.md` = the Windows global rules, with measured environment facts, the ghost-command table, the three encoding layers, and the read-before-you-run routing | `~/.minimax/AGENTS.md` (`cp`) |
+| `agent/windows-agent/` | `agents-additional.md` = what a Windows AGENTS.md should add and why, one measured basis per rule; the design note behind `minimax-code/` | -- |
 | `agent/antigravity/` | `agents-brave-uv.md` + agy notes | `~/.gemini/config/AGENTS.md` |
 | `agent/brave-search/` | bx CLI and Brave MCP notes; `files/setup-bx-linux.sh` (WSL / Linux) and `files/setup-bx-windows.ps1` = setup scripts | run them (install into `~/.local/bin`, write the `bx` wrapper) |
 | `agent/skills/<name>/` | one skill each; install matrix in `agent/skills/README.md` | `~/.claude/skills/`, `~/.gemini/config/skills/`, `~/.agents/skills/` -- **only** via `tools/sync-skills.sh`; also published as `skills/<name>/` in the skills repo |
@@ -64,7 +67,9 @@ Every top-level directory except `tmp/` has a `README.md` index (`drafts/` too).
 | change WSL VM or distro settings | `wsl/setup/files/*` and the matching step in `wsl/setup/README.md` | the verification checklist (section 4) if behavior changes |
 | record an Ubuntu/Fedora difference | `wsl/distro-differences.md` | -- |
 | fix or set up something on the Linux desktop | `linux-desktop/README.md` (next 2.x section), configs in `linux-desktop/files/` | pitfall index rows |
-| change Windows-side config | `windows/<area>/` | -- |
+| fix or set up something on the Honor tablet Linux Lab | `honor-linuxlab/README.md` (next 2.x section), runbooks in `honor-linuxlab/` | pitfall index rows; check `honor-linuxlab/docs-gap.md` first so you do not rewrite what the vendor guide already covers |
+| change Windows-side config | `windows/<area>/`, deployable originals in `windows/files/` | -- |
+| configure a fresh Windows machine | `windows/setup/README.md` (the runbook) | it must stay probe-based: no machine-specific paths, profile names or versions -- see the "换机器复现时的差异" table |
 | change Claude Code settings, global rules, statusline | `agent/claude-code/*` | keep byte-identical to the live copy; `agent/claude-code/README.md` if a key's rationale changes |
 | change Antigravity global rules | `agent/antigravity/agents-brave-uv.md` | not `agents-brave-uv-desktop.md` (another environment) |
 | add or change a skill | `agent/skills/<name>/SKILL.md`, `scripts/`, `references/` | see "must change together"; then `bash tools/sync-skills.sh` (check) / `deploy <name>` |
@@ -86,6 +91,16 @@ Every top-level directory except `tmp/` has a `README.md` index (`drafts/` too).
 ## Rules that fail silently when broken
 
 - **ASCII only** in file and directory names, config files (comments included), skill YAML frontmatter, and this file.
+- **LF line endings, in the repository and in the working tree.** `.gitattributes` pins this
+  (`* text=auto eol=lf`; `.bat`, `.cmd` and `.reg` stay CRLF in the working tree only), so no
+  machine's `core.autocrlf` decides for everyone. On Windows, write files with a tool that emits
+  the bytes you hand it and put `\n` in the content -- `[IO.File]::WriteAllText($path, $content)`.
+  `Set-Content`, `Out-File` and `[IO.File]::WriteAllLines` go through `Environment.NewLine` and
+  emit CRLF. A substring-replace edit normalizes to the file's existing line ending, so converting
+  one means rewriting it whole, not patching it. Details: `conventions.md`.
+- **No `@path` forwarding in a tracked file.** A root `CLAUDE.md` once held nothing but
+  `@AGENTS.md`, relying on one harness's import syntax: another harness sees an 11-byte
+  file, and the link dangles in the public repos. Ship the original as a whole file.
 - A skill calls its own scripts as `~/.agents/skills/<name>/scripts/...`, never a harness-specific directory,
   with a "Paths" note at the first use saying `~/.claude/skills/`, `~/.gemini/config/skills/` or a path relative
   to the SKILL.md work as well. Only Claude Code hook config keeps `~/.claude/skills/`.

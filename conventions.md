@@ -26,6 +26,20 @@
   trigger matching). Non-ASCII in the wrong place fails **silently and far
   from its cause** -- across the WSL/Windows boundary, in archives, in shell and harness
   parsing.
+- **Line endings are LF, in the repository *and* in the working tree.**
+  `.gitattributes` pins that (`* text=auto eol=lf`; `.bat`, `.cmd` and `.reg` stay CRLF
+  in the working tree only), so no machine's `core.autocrlf` gets to decide for everyone.
+  The attribute is the backstop, not the plan -- an agent editing on Windows can still
+  reintroduce CRLF before git ever sees the file:
+  - **Write through a tool that emits the bytes you hand it, with `\n` in the content.**
+    In PowerShell that is `[IO.File]::WriteAllText($path, $content)`.
+    **`Set-Content`, `Out-File` and `[IO.File]::WriteAllLines` all go through
+    `Environment.NewLine`, so they emit CRLF on Windows** -- measured, not assumed.
+  - **A substring-replace tool normalizes the replacement to the file's existing line
+    ending.** Editing a CRLF file line by line therefore keeps it CRLF indefinitely.
+    Changing line endings means rewriting the whole file, not patching part of it.
+  - **Count the CR bytes to check; do not eyeball it.** A terminal renders CRLF and LF
+    identically, so a file can look right in the editor and be wrong in the commit.
 - **Markdown filenames are lowercase kebab-case**: `wsl-gui-and-ime.md` -- no capitals,
   underscores or spaces. Forensic records and point-in-time snapshots get a `-YYYYMMDD`
   suffix (`etc-diff-analysis-20260330.md`, `pnpm-npm-cleanup-20260920.md`); process docs and

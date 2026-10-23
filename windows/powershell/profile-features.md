@@ -6,6 +6,9 @@
 
 | 类别 | 关键绑定 |
 |---|---|
+| 控制台编码 | `[Console]::Input/OutputEncoding`、`$OutputEncoding` = UTF-8；`PYTHONUTF8=1` |
+| 报错语言 | `CurrentUICulture` 锁 en-US，cmdlet / provider 报错保持英文 |
+| 编码手动切换 | `Use-UTF8`（65001）、`Use-GBK`（936） |
 | 编辑模式 | Emacs |
 | 历史搜索 | `↑` `↓` |
 | 历史保存不执行 | `Alt+w` |
@@ -14,6 +17,32 @@
 | 预测建议接受 | `→`（整条）、`Ctrl+→`（下一词） |
 | System32 自动转 ~ | 启动时检测并切回 `~` |
 | 终端路径实时上报 | Windows Terminal `OSC 9;9` 实时同步当前工作路径 |
+
+---
+
+## 0. 终端编码与报错语言
+
+```powershell
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding           = [System.Text.Encoding]::UTF8
+$env:PYTHONUTF8 = "1"
+
+[Threading.Thread]::CurrentThread.CurrentUICulture =
+    [Globalization.CultureInfo]::GetCultureInfo('en-US')
+```
+
+三件事互相独立，别混为一谈：
+
+- **控制台代码页**由前三行决定。设了它 `chcp` 变成 65001，**而且同一控制台上的其它进程
+  跟着一起变**——实测子进程 `chcp 936` 之后父进程立刻看到 936。
+- **报错语言**由 `CurrentUICulture` 决定，跟编码无关。PowerShell 7 自带 `zh-Hans` 消息资源，
+  不锁的话 cmdlet / provider 的报错跟系统显示语言走，是中文；`.NET` 与 Win32 消息在这类
+  LTSC 中文系统上反而本来就是英文。
+- **`$PSUILanguage` 不是那个开关。** PowerShell 7.4 引入它，实测 7.6.7 上设成 `en-US`
+  变量确实变了，报错**仍然是中文**；只有 `CurrentUICulture` 真起作用。
+
+细节、实测数据和排查步骤见 [`cjk-command-io.md`](cjk-command-io.md)。
 
 ---
 
