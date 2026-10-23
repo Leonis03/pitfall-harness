@@ -46,6 +46,7 @@ stays private (see below).
 | `linux-desktop/` | Mint desktop notes (sections 2.x) and `gui-and-ime.md` (Fcitx5, Rime, fonts, tools, pnpm); `files/` = Ghostty, Nemo, fontconfig, pnpm originals | `~/.config/ghostty/config`, `~/.local/share/nemo/actions/`, `/etc/fonts/conf.avail/`, `~/.config/pnpm/` |
 | `honor-linuxlab/` | Honor tablet Linux Lab (PRoot): what the vendor docs and the vendor assistant never cover; `docs-gap.md` = unit-by-unit comparison against the bundled guide; `files/` = fingerprint script | -- |
 | `windows/` | `setup/` = the LTSC setup runbook (hand the whole file to an agent); `files/` = deployable originals; plus Terminal, PowerShell (incl. Typora close/kill scripts), IME / keyboard layouts, context menu, Windows Update | `$PROFILE` (`Microsoft.PowerShell_profile.ps1`), `.reg` imports |
+| `os-install/` | OS installation notes and the contracts that cross the install boundary; `dual-boot-time-sync.md` = the RTC/UTC clock contract between a dual-booted Windows and Linux; `files/` = read-only probe scripts | -- |
 | `agent/claude-code/` | `settings.json`, `claude-global.md`, `statusline-command.sh`, `files/claude-wrapper.sh` | `~/.claude/` (`claude-global.md` -> `~/.claude/CLAUDE.md`); `files/claude-wrapper.sh` -> `~/.local/bin/claude` |
 | `agent/minimax-code/` | `agents-windows.md` = the Windows global rules, with measured environment facts, the ghost-command table, the three encoding layers, and the read-before-you-run routing | `~/.minimax/AGENTS.md` (`cp`) |
 | `agent/windows-agent/` | `agents-additional.md` = what a Windows AGENTS.md should add and why, one measured basis per rule; the design note behind `minimax-code/` | -- |
@@ -70,6 +71,7 @@ Every top-level directory except `tmp/` has a `README.md` index (`drafts/` too).
 | fix or set up something on the Honor tablet Linux Lab | `honor-linuxlab/README.md` (next 2.x section), runbooks in `honor-linuxlab/` | pitfall index rows; check `honor-linuxlab/docs-gap.md` first so you do not rewrite what the vendor guide already covers |
 | change Windows-side config | `windows/<area>/`, deployable originals in `windows/files/` | -- |
 | configure a fresh Windows machine | `windows/setup/README.md` (the runbook) | it must stay probe-based: no machine-specific paths, profile names or versions -- see the "换机器复现时的差异" table |
+| fix a clock or UTC-offset problem on a dual-booted machine | `os-install/dual-boot-time-sync.md`, probes in `os-install/files/` | the RTC convention is a two-sided contract: `RealTimeIsUniversal` on Windows, `LocalRTC` on Linux -- check both before changing either; pitfall index rows in both root READMEs |
 | change Claude Code settings, global rules, statusline | `agent/claude-code/*` | keep byte-identical to the live copy; `agent/claude-code/README.md` if a key's rationale changes |
 | change Antigravity global rules | `agent/antigravity/agents-brave-uv.md` | not `agents-brave-uv-desktop.md` (another environment) |
 | add or change a skill | `agent/skills/<name>/SKILL.md`, `scripts/`, `references/` | see "must change together"; then `bash tools/sync-skills.sh` (check) / `deploy <name>` |

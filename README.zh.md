@@ -40,6 +40,7 @@ Config README Skill
 | 环境 | 在哪 |
 | :--- | :--- |
 | Windows 11 + WSL2（Ubuntu 24.04 → Fedora 44 迁移中） | [`wsl/`](wsl/) · [`windows/`](windows/) |
+| Windows 11 + 同一台机器上的 Linux 发行版（双系统） | [`os-install/`](os-install/) |
 | 原生 Linux 桌面（Linux Mint 22） | [`linux-desktop/`](linux-desktop/) |
 | 上面两者共用的 bash / zsh 四层配置 | [`shell/`](shell/) |
 | Android（Termux root chroot） | [`agent/skills/`](agent/skills/) 下的 `android-chroot-debian` 等 skill |
@@ -72,6 +73,7 @@ Config README Skill
 | 你想做什么 | 去哪 |
 | :--- | :--- |
 | **在新的 Windows 机器上复刻 WSL 环境** | [`wsl/setup/`](wsl/setup/) —— 复刻指南，可整份交给 agent 执行 |
+| **在 Windows 旁边装第二个系统，并让两边时钟一致** | [`os-install/`](os-install/) —— 跨越安装边界的契约；当前是双系统的 RTC/UTC 时钟契约 |
 | 在原生 Linux 桌面上复刻 | [`linux-desktop/`](linux-desktop/)，shell 配置用 [`shell/`](shell/) |
 | 配 Git 与 GitHub（含隐私邮箱） | [`git-github/`](git-github/) |
 | 配 Claude Code | [`agent/claude-code/`](agent/claude-code/) |
@@ -108,6 +110,13 @@ WSL 专属的互操作函数在原生 Linux 上靠 `/proc/version` 检测自动�
 ### [`windows/`](windows/) —— Windows 侧
 
 [`setup/`](windows/setup/)（LTSC 环境配置 runbook，可整份交给 Agent 执行）· [`files/`](windows/files/)（可部署原件）· [`terminal/`](windows/terminal/)（Windows Terminal 配置）· [`powershell/`](windows/powershell/)（PowerShell 7 profile、PSReadLine、一键关闭所有资源管理器窗口、关闭 / 强制关闭 Typora）· [`ime-keyboard/`](windows/ime-keyboard/)（卸载语言后残留的键盘布局、拼音首字母漏成英文的排查清单）· [`context-menu/`](windows/context-menu/)（右键菜单项排查与优化）· [`windows-update/`](windows/windows-update/)（把功能更新钉在 24H2，但保留更新可见性）
+
+### [`os-install/`](os-install/) —— 系统安装
+
+只因为「两套系统共用同一台机器」才存在的主题。当前是双系统 Windows 与 Linux 之间的
+**时钟契约**：RTC 约定、8 小时偏差的特征、自动校正与有意漂移的取舍，以及与快速启动的
+相互作用。`files/` 里的只读探针报告两侧状态；每个修复都是一条命令，写在支撑它的实测
+数据旁边。
 
 ### [`linux-desktop/`](linux-desktop/) —— 原生 Linux 桌面
 
@@ -245,6 +254,7 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **仓库自带的两道门禁缺输入时会静默降级** | 缺 `tools/.sync-map` → `sync-skills.sh` 直接 exit 2，skill 核对与部署能力整体失效；缺 `tools/.privacy-names` → `privacy-gate.sh` 打印 `the literal-name check was skipped` 后**照样 exit 0**。两者第一眼都不像故障 | [`tools/README.md`](tools/README.md) |
 | **`bash -lc` 与 `bash -ic` 解析出的 PATH 不是一回事** | Debian 的 `~/.bashrc` 对非交互 shell 提前 return，于是「登录但非交互」的 shell 根本不读 `~/.shell_common`：nvm 缺失，`node` 回落到 `/usr/bin/node`（交互 shell 报 v24 时它还是 v22）。用一种形式验证、在另一种形式里使用，就会得出「改动没生效」的错误结论 | [`shell/`](shell/) |
 | **`Add-AppxPackage` 说的是「缺框架」而不是「包坏了」** | 装 winget v1.29.380 报 `0x80073CF3 ... depends on a framework that could not be found`，而机器上明明已经列出了 `WindowsAppRuntime` —— 那是 `.CBS` 变体，包名不同，部署校验不认 | [`windows/terminal/winget-and-terminal-without-store.md`](windows/terminal/winget-and-terminal-without-store.md) 第 2.2 节 |
+| **双系统开机差 8 小时，几分钟后又自己好了** | 时钟只在网络起来之前是错的，于是看起来像同步问题：RTC 里存的是本地时间，Windows 却被告知它存的是 UTC（`RealTimeIsUniversal=1`），每次开机都被 NTP 悄悄修好。屏幕在骗人，硬件没有 | [`os-install/dual-boot-time-sync.md`](os-install/dual-boot-time-sync.md) 第 2 节 |
 
 ---
 

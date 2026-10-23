@@ -42,6 +42,7 @@ Markdown files in this repository are strictly divided by audience:
 | Environment | Where |
 | :--- | :--- |
 | Windows 11 + WSL2 (Ubuntu 24.04, migrating to Fedora 44) | [`wsl/`](wsl/) · [`windows/`](windows/) |
+| Windows 11 + a Linux distribution on the same machine (dual boot) | [`os-install/`](os-install/) |
 | Native Linux desktop (Linux Mint 22) | [`linux-desktop/`](linux-desktop/) |
 | The four-layer bash / zsh config both of the above share | [`shell/`](shell/) |
 | Android (Termux root chroot, Honor tablet Linux Lab) | the `android-chroot-debian` and three sibling skills under [`agent/skills/`](agent/skills/) |
@@ -83,6 +84,7 @@ records *why* things are the way they are.
 | :--- | :--- |
 | **Rebuild the WSL environment on a new Windows machine** | [`wsl/setup/`](wsl/setup/) -- the rebuild guide; you can hand the whole file to an agent |
 | **Configure a freshly installed Windows LTSC machine** | [`windows/setup/`](windows/setup/) -- the same shape, for the Windows side |
+| **Install a second OS next to Windows and keep both clocks in agreement** | [`os-install/`](os-install/) -- the contracts that cross the install boundary; today: the RTC/UTC clock contract of a dual boot |
 | Rebuild on a native Linux desktop | [`linux-desktop/`](linux-desktop/), with the shell config from [`shell/`](shell/) |
 | Set up Git and GitHub (including the privacy email) | [`git-github/`](git-github/) |
 | Set up Claude Code | [`agent/claude-code/`](agent/claude-code/) |
@@ -133,6 +135,14 @@ first-Pinyin-letter-leaks-as-Latin checklist) ·
 [`context-menu/`](windows/context-menu/) (diagnosing and trimming context-menu entries) ·
 [`windows-update/`](windows/windows-update/) (pin feature updates to 24H2 while keeping
 updates visible)
+
+### [`os-install/`](os-install/) -- system installation
+
+Topics that exist only because two operating systems share the machine. Today: the **clock
+contract** between a dual-booted Windows and Linux -- the RTC convention, the 8-hour signature,
+automatic correction vs. deliberate drift, and the fast-startup interaction. The read-only
+probes in `files/` report the state of both sides; every fix is a command written next to the
+measurement that justified it.
 
 ### [`linux-desktop/`](linux-desktop/) -- native Linux desktop
 
@@ -276,6 +286,7 @@ Entries that took real time to diagnose and whose conclusion is not obvious.
 | **The repo's own gates degrade silently without their gitignored inputs** | No `tools/.sync-map` makes `sync-skills.sh` exit 2 and disables skill check/deploy entirely; no `tools/.privacy-names` makes `privacy-gate.sh` print `the literal-name check was skipped` and still exit 0. Neither failure looks like a failure at a glance | [`tools/README.md`](tools/README.md) |
 | **`bash -lc` and `bash -ic` resolve a different PATH** | Debian's `~/.bashrc` returns early for non-interactive shells, so a login-but-not-interactive shell never sources `~/.shell_common`: nvm is missing and `node` falls back to `/usr/bin/node` (v22 while an interactive shell reports v24). Verifying one way and using the other yields a false "the change did not take" | [`shell/`](shell/) |
 | **`Add-AppxPackage` says the framework is missing, not that the package is broken** | winget v1.29.380 refuses to install with `0x80073CF3 ... depends on a framework that could not be found`, while the machine already lists a `WindowsAppRuntime` package -- the `.CBS` variant, a different package name the deployment validator does not accept | [`windows/terminal/winget-and-terminal-without-store.md`](windows/terminal/winget-and-terminal-without-store.md) section 2.2 |
+| **A dual boot is 8 hours off at boot and correct minutes later** | The clock is wrong only until the network comes up, so it looks like a sync problem: the RTC holds local time while Windows is told it holds UTC (`RealTimeIsUniversal=1`), and the NTP sync silently repairs it every boot. The screen lies; the hardware does not | [`os-install/dual-boot-time-sync.md`](os-install/dual-boot-time-sync.md) section 2 |
 
 ---
 
