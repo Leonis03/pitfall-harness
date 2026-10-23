@@ -1,5 +1,22 @@
 # 任务指令：配置 PowerShell 7 ($PROFILE) 命令行增强功能
 
+> **本文已降级为历史参考，不要照抄这里的代码。**
+>
+> 这是最早的一版配置指令（任务书形态），**不是**当前部署的文件。权威的两份是：
+>
+> - 原件：[`../files/powershell/Microsoft.PowerShell_profile.ps1`](../files/powershell/Microsoft.PowerShell_profile.ps1)
+> - 文档：[`profile-features.md`](profile-features.md)
+>
+> 本文与部署行为有三处不一致，抄了会写出不一样的 profile：
+>
+> 1. **缺第 0 节**（终端编码 `UTF8` 与报错语言 `CurrentUICulture`），那是后加的，见
+>    [`profile-features.md`](profile-features.md) 第 0 节和 [`cjk-command-io.md`](cjk-command-io.md)。
+> 2. **引号配对处理器是早期简化版**，只用光标位置判断；部署的版本用 `GetBufferState` +
+>    AST token 判断，能识别引号里是否套着代码。
+> 3. **预测建议那段没有 try/catch 包裹**，在不支持的 PSReadLine 版本上会直接抛错中断 profile 加载。
+>
+> 保留本文是因为它记录了「当初要什么」，不是「现在是什么」。
+
 请作为 PowerShell 与 Windows 终端配置专家，为当前 Windows 环境下的 **PowerShell 7 (`pwsh`)** 配置 `$PROFILE`，实现以下对话讨论并通过测试的命令行增强功能。
 
 ---
@@ -136,7 +153,7 @@ Set-PSReadLineKeyHandler -Key '"', "'" `
     }
 
     [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$quote$quote")
-    [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor - 1)
+    [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor + 1)
 }
 
 Set-PSReadLineKeyHandler -Key '(', '[', '{' `
@@ -160,7 +177,7 @@ Set-PSReadLineKeyHandler -Key '(', '[', '{' `
     }
 
     [Microsoft.PowerShell.PSConsoleReadLine]::Insert($key.KeyChar + $closeChar)
-    [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor - 1)
+    [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor + 1)
 }
 
 Set-PSReadLineKeyHandler -Key ')', ']', '}' `

@@ -2,12 +2,20 @@
 # uninstalled. Keeps en-US plus any tags passed to -Keep ("de-DE,ja-JP").
 #
 # What it does, in order: self-elevates; prints the language list and the four
-# Preload / Substitutes keys; resets the user language list through
-# Set-WinUserLanguageList (the supported API); exports the four keys to .reg files
-# in the current directory; deletes Preload / Substitutes values not on the keep
-# list; tries lpksetup /u for leftover de-DE / el-GR / ru-RU packs; warns if
-# language settings sync is ON (it re-adds layouts from the cloud); asks to reboot.
+# Preload / Substitutes keys; exports the four keys to .reg files in the current
+# directory; resets the user language list through Set-WinUserLanguageList (the
+# supported API); deletes Preload / Substitutes values not on the keep list; tries
+# lpksetup /u for leftover de-DE / el-GR / ru-RU packs; warns if language settings
+# sync is ON (it re-adds layouts from the cloud); asks to reboot.
 # Writes a transcript FixKeyboardLayouts_<time>.log to the current directory.
+#
+# The export must stay BEFORE Set-WinUserLanguageList, and the order is not
+# cosmetic. That cmdlet rewrites Preload itself, so an export taken after it
+# already shows the cleaned value and cannot restore what was there before.
+# Measured 2026-10-17 on Windows 11 IoT LTSC 24H2 (26100.9711): the pre-fix order
+# produced two byte-identical backups, both holding "1"="00000409", while the
+# transcript above them was the only record of the original stray state
+# 1=00000804, 2=00000804, 3=00000409.
 #
 # Background and the manual fallback: stray-keyboard-layouts.md
 # Usage:  pwsh -NoProfile -ExecutionPolicy Bypass -File fix-keyboard-layouts.ps1 [-Keep "ja-JP"]
@@ -368,6 +376,13 @@ try {
         Show-RegistryKey -Path $path
     }
 
+    Write-Section "Exporting registry backups"
+    foreach ($path in $registryPaths) {
+        $safeName = $path -replace '[:\\\\\\. ]','_'
+        $dest = Join-Path -Path (Get-Location) -ChildPath ("FixKeyboardLayouts_{0}_{1}.reg" -f $timestamp, $safeName)
+        Export-RegistryKey -Path $path -Destination $dest
+    }
+
     Write-Section "Updating user language list"
     try {
         $currentList = Get-WinUserLanguageList
@@ -395,13 +410,6 @@ try {
         Write-Host ("Applied language list: {0}" -f ($normalizedKeepTags -join ', '))
     } catch {
         Write-Warning ("Failed to update the user language list: {0}" -f $_)
-    }
-
-    Write-Section "Exporting registry backups"
-    foreach ($path in $registryPaths) {
-        $safeName = $path -replace '[:\\\\\\. ]','_'
-        $dest = Join-Path -Path (Get-Location) -ChildPath ("FixKeyboardLayouts_{0}_{1}.reg" -f $timestamp, $safeName)
-        Export-RegistryKey -Path $path -Destination $dest
     }
 
     Write-Section "Cleaning registry keys"

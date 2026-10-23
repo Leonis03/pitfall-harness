@@ -1,11 +1,12 @@
 # Closing Typora From a Script (and Discarding Its Session)
 
-Two scripts in this directory, for when you want Typora gone without clicking through it:
+Two scripts under [`../files/powershell/`](../files/powershell/), for when you want Typora gone
+without clicking through it (originals live there, this note is the doc):
 
 | Script | Does | Unsaved edits | Next launch |
 | :--- | :--- | :--- | :--- |
-| `close-typora.ps1` | posts `WM_CLOSE` to every visible Typora window | Typora asks Save / Don't Save / Cancel | one empty window |
-| `kill-typora.ps1` | `taskkill /F /T` on every Typora process, then resets the session file | **discarded**, no prompt | one empty window |
+| [`close-typora.ps1`](../files/powershell/close-typora.ps1) | posts `WM_CLOSE` to every visible Typora window | Typora asks Save / Don't Save / Cancel | one empty window |
+| [`kill-typora.ps1`](../files/powershell/kill-typora.ps1) | `taskkill /F /T` on every Typora process, then resets the session file | **discarded**, no prompt | one empty window |
 
 Tested on Typora 1.14.9 (Windows 11): both end with one empty `Typora` window on the next start.
 

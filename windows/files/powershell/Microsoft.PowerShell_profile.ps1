@@ -6,6 +6,43 @@
 using namespace System.Management.Automation
 using namespace System.Management.Automation.Language
 
+# ------------------------------------------------------------------------------
+# 0. UTF-8 Console, Process & Python Environment Configuration
+# ------------------------------------------------------------------------------
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding           = [System.Text.Encoding]::UTF8
+
+# Enable Python 3.7+ UTF-8 Mode (PEP 540)
+$env:PYTHONUTF8 = "1"
+
+# Pin the UI culture to English so cmdlet and provider messages stay ASCII.
+# PowerShell 7 ships localized message resources (this build has zh-Hans), so
+# without this they follow the OS display language and come out as Chinese.
+# Measured on PowerShell 7.6.7: $PSUILanguage = 'en-US' sets the variable and
+# changes no message; this line is the one that actually works.
+# UI culture only -- it does not touch the console encoding set above.
+[Threading.Thread]::CurrentThread.CurrentUICulture =
+    [Globalization.CultureInfo]::GetCultureInfo('en-US')
+
+# Helper function to switch encoding to GBK (Code Page 936)
+function Use-GBK {
+    chcp 936 > $null
+    [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)
+    $global:OutputEncoding    = [System.Text.Encoding]::GetEncoding(936)
+    $env:PYTHONUTF8 = "0"
+    Write-Host "[Encoding] Switched to GBK (Code Page 936)" -ForegroundColor Yellow
+}
+
+# Helper function to switch encoding to UTF-8 (Code Page 65001)
+function Use-UTF8 {
+    chcp 65001 > $null
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $global:OutputEncoding    = [System.Text.Encoding]::UTF8
+    $env:PYTHONUTF8 = "1"
+    Write-Host "[Encoding] Switched to UTF-8 (Code Page 65001)" -ForegroundColor Green
+}
+
 Import-Module PSReadLine
 
 # ------------------------------------------------------------------------------

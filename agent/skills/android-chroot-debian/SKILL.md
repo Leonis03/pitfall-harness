@@ -187,4 +187,5 @@ bash scripts/01-termux-deploy-debian.sh
 * [Bionic vs glibc ELF 解释器冲突 (`cannot execute: required file not found`)](references/bionic-vs-glibc-elf.md)
 * [Mount Namespace 隔离与会话不同步陷阱分析](references/mount-namespace-gotchas.md)
 * [PTY 伪终端与 /proc/self/exe 机制深剖](references/pty-and-proc-internals.md)
+* [代理变量与跨会话 socket：两个静默故障](references/proxy-and-socket-pitfalls.md)
 

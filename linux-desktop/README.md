@@ -221,13 +221,21 @@ deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu noble-security main restricted u
 
 ---
 
-### 2.5 CLI Agent / 终端快捷键粘贴（Ctrl+V / Alt+V）报错 `no supported clipboard tool found`
+### 2.5 CLI Agent / 终端快捷键粘贴（Ctrl+V / Alt+V）缺剪贴板后端（`no supported clipboard tool found` 或静默失败）
 
 #### 症状
-在 Claude Code、Antigravity 等终端 CLI Agent 中按 `Ctrl+V` 或 `Alt+V` 粘贴剪贴板文本或图片时，终端报出警告：
-```text
-no supported clipboard tool found (install wl-clipboard or xclip)
-```
+1. **Go 系 CLI 明确报错**：在 Antigravity 等终端 CLI Agent 中按 `Ctrl+V` 或 `Alt+V` 粘贴剪贴板文本或图片时，终端报出警告：
+
+   ```text
+   no supported clipboard tool found (install wl-clipboard or xclip)
+   ```
+
+2. **Claude Code 完全不报错，按 `Ctrl+V` 静默无反应**（2026-10-21 实测，Claude Code 2.1.304）：
+   - 粘贴截图后，界面上既没有图也没有错误，只有一句 `No image found in clipboard.`；
+   - 更隐蔽的是那句主动提示 `Image in clipboard · ctrl+v to paste` **永远不会出现**——读剪贴板的那条命令本身就是死的，监视器根本读不到内容；
+   - 文字粘贴同样失效，`Ctrl+V` 粘不出任何文本。
+
+   **没有报错不代表剪贴板是空的**，只代表探测命令没跑成。这是本节最容易误判的地方。
 
 #### 根因剖析
 1. **WSL2 与原生 Linux 剪贴板生态差异**：
@@ -237,6 +245,23 @@ no supported clipboard tool found (install wl-clipboard or xclip)
    - 现代 CLI Agent（如 Claude Code 内置的富文本/图片粘贴模块）在 Linux 平台下检测系统剪贴板时，硬编码依赖系统级 CLI 工具：X11 下调用 `xclip`（或 `xsel`），Wayland 下调用 `wl-clipboard`（`wl-paste` / `wl-copy`）。
    - Linux 发行版的基础桌面镜像通常不会默认预装这些底层 CLI 工具，导致终端交互层触发按键时探测失败。
 
+   Claude Code 把这条探测链硬编码成了下面这几段命令（从 2.1.304 的二进制里原样挖出来的）：
+
+   ```bash
+   # 读文字：依次尝试 wl-paste -> xclip -> xsel，第一个退出码为 0 的即采用
+   wl-paste --no-newline
+   xclip -selection clipboard -o
+   xsel --clipboard --output
+
+   # 检测剪贴板里有没有图片（xclip 优先，wl-paste 兜底）
+   xclip -selection clipboard -t TARGETS -o 2>/dev/null | grep -E "image/(png|jpeg|jpg|gif|webp|bmp)" || wl-paste -l 2>/dev/null | grep -E "image/(png|jpeg|jpg|gif|webp|bmp)"
+
+   # 取出图片字节落盘
+   xclip -selection clipboard -t image/png -o > <文件> 2>/dev/null || wl-paste --type image/png > <文件> 2>/dev/null || xclip -selection clipboard -t image/bmp -o > <文件> 2>/dev/null || wl-paste --type image/bmp > <文件>
+   ```
+
+   `ctrl+v` 绑定的动作是 `chat:imagePaste`：先读文字，读到非二进制内容就当文本粘；否则跑图片检测，**退出码非 0 就直接判定「剪贴板里没有图」并返回**。X11 会话下 `wl-paste` 兜不了底，`xclip` 一缺，三条命令全灭 → 静默失败。
+
 #### 解决方案
 安装原生剪贴板工具链（同时兼顾 X11 与 Wayland 环境）：
 ```bash
@@ -244,9 +269,30 @@ sudo apt-get install -y xclip xsel wl-clipboard
 ```
 - Linux Mint 22 默认 X11 环境下 `xclip` / `xsel` 负责接管剪贴板读写。
 - 安装 `wl-clipboard`，使切换到 Wayland 会话后剪贴板命令仍可用。
+- **装了 `wl-clipboard` 不会在 X11 下顶掉 `xclip`**：读文字的命令链是「试 `wl-paste` → 试 `xclip` → 试 `xsel`，谁退出码为 0 用谁」，而没有 Wayland 会话时 `wl-paste` 直接非 0 退出，自动落到 `xclip`。
+- 若 `apt install` 报 dpkg 锁被占用，见第 2.21 节。
 
-> **[!IMPORTANT] 进程生命周期陷阱**：
+> **[!IMPORTANT] 进程生命周期陷阱（仅限 Go 系 CLI）**：
 > 如果 CLI Agent（如 `agy`）在执行 `apt install` 之前就已经在终端中运行，由于 Go 语言底层剪贴板库（如 `atotto/clipboard`）在进程引导的 `init()` 阶段仅探测一次 `exec.LookPath` 并固化在进程内存中，后装的命令无法被当前运行中的进程动态感知，调用 `/copy` 依然会报无可用剪贴板。**必须退出当前会话并重新启动 CLI（例如重启 `agy` 后通过 `/resume` 恢复）**，新进程启动后即可正常访问剪贴板。
+>
+> **这一条不适用于 Claude Code。** Claude Code 是**每次按键现 spawn** 一次 `xclip`，不做启动期缓存，因此工具链装好后，**当前正在运行的会话立刻就能粘贴，不需要重启**。判断依据：装完 `xclip` 后，在**没有重启过**的 Claude Code 会话里直接执行 `xclip -selection clipboard -t TARGETS -o` 已经能读出内容，而这条命令正是粘贴动作内部执行的那一条。
+
+#### 验证是否真的修好
+
+装完不要凭「没报错」下结论——按第 2.18 节的老办法，**主动制造一个可判定的输入**：
+
+```bash
+# 1) 确认工具都在 PATH 里
+command -v xclip xsel wl-paste
+
+# 2) 用截图工具 Copy to Clipboard 之后，确认剪贴板里确实有图片
+xclip -selection clipboard -t TARGETS -o | grep -E "image/(png|jpeg|jpg|gif|webp|bmp)"
+# 期望输出：image/png
+
+# 3) 确认能原样取出图片字节
+xclip -selection clipboard -t image/png -o > /tmp/clip-check.png && file /tmp/clip-check.png
+# 期望输出：PNG image data, 宽 x 高, 8-bit/color RGB, non-interlaced
+```
 
 ---
 
@@ -735,3 +781,504 @@ pnpm approve-builds
 ```bash
 pnpm config set minimum-release-age 60 -g
 ```
+
+### 2.17 Node 大版本升级作废原生模块：ABI 127 → 137，而报错指向 npm
+
+#### 症状
+
+把 Node 从 22 升到 24 之后，原本好好的全局 CLI 一启动就崩：
+
+```text
+MCode could not load its native SQLite dependency.
+If npm reported blocked install scripts, the installation needs explicit script approval.
+Reinstall with the original installer. For npm installations, run:
+  npm install --global @minimax-ai/code@0.6.5 --ignore-scripts=false \
+    --include=optional --allow-scripts=... --registry https://registry.npmjs.org/
+
+Original error: .../better-sqlite3/build/Release/better_sqlite3.node
+was compiled against a different Node.js version using
+NODE_MODULE_VERSION 127. This version of Node.js requires
+NODE_MODULE_VERSION 137. Please try re-compiling or re-installing
+the module (for instance, using `npm rebuild` or `npm install`).
+```
+
+#### 根因剖析
+
+`NODE_MODULE_VERSION` 是 Node 的 **ABI 编号，每个大版本一条**：Node 22 是 127，Node 24 是 137。
+原生插件（`.node` 文件）是编译产物，构建时的 ABI 被烧进了二进制。
+**换 Node 大版本 = 换 ABI = 旧产物当场失效**，跟包本身好不好、装没装对毫无关系。
+
+**报错开头的建议是误导。** 那段 "run npm install --global ... --allow-scripts=" 是
+**npm 11 的通用模板**（`allow-scripts` 是 npm 11 的新特性），它假设"包是用 npm 装的、
+且 postinstall 被拦了"。而实际情况是：
+
+1. 包是 **pnpm** 装的（全局目录在 `~/.local/share/pnpm/global/v11`）；
+2. install script **当初成功跑过**——它产出的二进制对当时的 Node 22 完全正确。
+
+所以照着提示重装、放行构建脚本、开交互式 `approve-builds`，一个都不会有用。
+**唯一有效的是为新 ABI 重新产出二进制。**
+
+#### 最贵的一个陷阱：重装"看起来修好了"
+
+本次实际发生的事，值得单独写出来：
+
+- 重装确实跑通了，`mcode` 也能启动了——**但那次重装是在旧的 Node 22 下执行的**。
+  那个终端是升级之前就开着的，PATH 里没有 nvm，所以拿到的是 `/usr/bin/node`（v22）。
+  于是 postinstall 又产出了一份 **ABI 127** 的二进制，跟旧环境自然匹配，症状消失。
+- 新开一个终端拿到的是 Node 24，**同一个错误原封不动地回来**。
+
+也就是说，**"重装一次就好了"这个观测本身可能是假的**，它只证明了当前那个 shell 能用。
+判定标准不是"命令能跑"，而是**确认重装是在新 Node 下做的**：
+
+```bash
+node -v            # 必须是升级后的版本
+node -p process.versions.modules   # ABI 编号，和报错里的那个数对上
+```
+
+#### 解决方案
+
+**升级 Node 大版本之后，把所有带原生依赖的全局包装一遍。** 找出来：
+
+```bash
+find ~/.local/share/pnpm/global -name '*.node' -newermt '-30 days'
+```
+
+最省事的做法是照 2.13 的路子重装一遍（pnpm 会重跑 postinstall）。
+只想重编单个模块的话，删掉它的 `build/` 再重跑 install 脚本
+（`prebuild-install || node-gyp rebuild --release`），比整体重装快得多。
+
+#### 验证时的一个细节：`require()` 成功不算数
+
+`better-sqlite3` 是**惰性加载** `.node` 的——`require()` 只加载了 JS 包装层，
+真正 dlopen 发生在 `new Database()`。所以这样测**会误报成功**：
+
+```bash
+node -e "require('better-sqlite3')"     # 两个版本都"成功"，说明不了任何事
+```
+
+必须真的建库：
+
+```bash
+node -e "const D=require('better-sqlite3'); new D(':memory:').prepare('select 1 as v').get()"
+```
+
+#### 为什么值得记
+
+这是 2.13 的**下半场**：2.13 说"装 pnpm 全局包之前必须先装 Node"，
+这一条说"**换完 Node 之后必须重装那些带原生依赖的包**"。
+两者都发生在同一条链路上，只记住前半句，后半句的坑会在下一次升级时原样复现。
+
+---
+
+### 2.18 Ghostty 静默忽略未知配置键：`shell` 不是键名，`command` 才是
+
+#### 症状
+
+想让 Ghostty 默认用某个 shell，于是在配置里写：
+
+```ini
+shell = /usr/bin/zsh
+```
+
+配置校验没报错，Ghostty 也正常启动了，**终端里却还是原来的 shell**。
+`ghostty +show-config` 里也**根本看不到这一行**。
+
+#### 根因剖析
+
+两件事叠在一起：
+
+1. **键名不对。** Ghostty 1.3.1 里这个键叫 **`command`**，`shell` 不是合法键名。
+2. **未知键被静默忽略。** 实测往配置里塞一个纯属捏造的
+   `this_key_is_bogus_xyz = 1`，Ghostty 同样**不报错、退出码 0**。
+
+所以"没报错"完全不能作为"配置生效"的证据。而 `+show-config` 也不行——
+它只打印**认识的**键，未知键不出现这件事，和"你根本没配"长得一模一样。
+
+#### 解决方案
+
+用 `ghostty +validate-config`，它会指名道姓地报出来：
+
+```text
+~/.config/ghostty/config:4:shell: unknown field
+```
+
+它还**会报行号**，所以配置文件里加注释、保留可读的说明，不影响校验。
+
+#### 为什么值得记
+
+这是一个通用失败类别：**配置被静默忽略**。验证它的通用手法是
+**故意放一个明显不存在的键**，看校验器会不会报——
+
+- 会报 → 校验器可信，"通过"才有意义；
+- 不报 → 这个校验器根本不检查，"通过"是空的。
+
+这个手法对任何"配置文件静默失效"的场景都适用，不限于 Ghostty。
+
+---
+
+### 2.19 Clash Verge Rev 在 Linux 上的静默失败面：连接面板空白、托盘失效与源码级取证
+
+#### 症状
+1. **「连接 / Connections」面板永远空白**：界面点进连接页，表格一行都没有，但代理本身完全正常——浏览器能翻墙、流量在跑、系统代理模式也开着。刷新页面、重启客户端都不解决。
+2. **托盘菜单静默失效**：日志里只有一行 `WARN [Tray] Failed to update tray menu: tray not found`，托盘右键菜单点不动，界面上没有任何提示，客户端也不退出。
+3. **「每次更新都出新 bug」的体感**能对上具体数字（见根因剖析第七点），不是错觉。
+
+#### 根因剖析
+
+**一、先证伪代理核心：mihomo 侧完全正常**
+
+手工做一次 WebSocket 握手就能证明：核心返回 `101 Switching Protocols`，随后是实时的连接快照 JSON。所以问题**不在**代理核心、不在订阅、不在系统代理开关。把它当成"客户端坏了"去重装、去换订阅、去反复切系统代理，都是白费功夫。
+
+**二、前端把连接失败吞成了每秒静默重连**
+
+`src/hooks/use-connection-data.ts`：
+- `:333` `} catch { scheduleReconnect() }`——裸 `catch`，连接失败后每秒重连一次，`console` 里一个字都不打。
+- `:326` 收到 `'Websocket error'` 载荷，同样只是触发重连，不上报。
+- `:322` 把 `socket = connected` 放在 `connected.addListener(...)` **之前**。若 `addListener` 抛错，`:333` 的 catch 会安排重连，但此时 `socket` 已非空，`connect()` 会卡在 `:310` 的 `if (socket || connecting) return` 直接返回——**永久死锁，页面永远空**。
+- `src/pages/connections.tsx:159` 还带 `errorNotice: false`，连通知都不弹。
+
+**三、可见性门控让"空页面"有第二种成因**
+
+`src/pages/connections.tsx:85` `const pageVisible = useVisibility()`，`:98` 把它作为 `useConnectionData({ enabled: pageVisible })` 传下去。而 `use-connection-data.ts:415-421` 里，`enabled` 为假时 `subscribe` 直接返回 `() => {}`——**WebSocket 根本不会建立**，页面当然是空的。`useVisibility` 内部靠 `appWindow.isVisible()` 与 `document.visibilityState` 两个来源合成可见性，而这两者在 Tauri webview 里可以不一致。
+
+**四、运行时证据：核心侧堆积孤儿连接**
+
+核心的 unix socket 上 ESTAB 共 17 条，其中 **9 条的 peer inode 为 0**（对端已经关闭）且 **Recv-Q 挂着 30 字节永远没人读**；只有 8 条是 GUI 侧仍然活着的连接。GUI 那头关掉了连接，核心侧没收掉——**连接泄漏与静默重连互相喂**。这个"ESTAB 但 peer inode = 0"的形态，是判断"客户端是不是在偷偷重连"的直接证据。
+
+**五、托盘是同一套病：失败被写成了成功**
+
+`src-tauri/src/core/tray/mod.rs`：
+- `:158-162` 托盘创建失败 → 记一条 WARN → `return Ok(())`。
+- `:199-200` 更新菜单找不到托盘 → 记一行日志 → `return Ok(())`。
+- 但同一文件 `:179` 的 `update_click_behavior` 却 `return Err("Failed to get main tray")`——**同一个文件两套失败语义**。
+- 托盘是在 `src-tauri/src/utils/resolve/mod.rs:203` 异步创建的，任何并发的菜单更新都会和它竞态，于是"找不到托盘"成了常态路径。
+
+**六、这不是维护者疏忽，是写进政策的**
+
+上游 `AGENTS.md` 规则 4（`:33-39`）原文：
+
+> Tests are justified, not default. Do not add tests, test scaffolding, or speculative defensive code unless the linked issue or stated task demands them. … Bulk test files and defensive programming for hypothetical failure modes are PR bloat, not rigor.
+
+`CONTRIBUTING.md` 同调。实测后果（对着 v2.5.8 源码统计）：
+
+| 维度 | 数字 |
+| :--- | :--- |
+| 手写代码总量 | 约 86,600 行（`src/` 48,621 + `src-tauri/` 38,596 + `crates/` 2,412） |
+| ≥100 行且**零测试**的 Rust 文件 | **48 / 85** |
+| 前端测试 | 10 个文件 / 822 行 / **20 个用例**，对着 45,237 行生产代码 |
+| `core/tray/mod.rs` | 1010 行、10 个平台分支、**0 个测试** |
+| Rust 生产代码 `unwrap()` / `expect(` | **1 个**（`main.rs:33`）/ 3 个；`Result<` 712 处 |
+| 前端 `catch` 块 | 186 处，其中裸 `catch {` **32 处**、`.catch(() => {})` **15 处** |
+
+Rust 侧的错误处理其实相当克制（生产代码只有 1 个 `unwrap()`），**问题集中在前端和测试策略上**。
+
+**七、平台偏向 macOS：Linux 只被"编译"，不被"测试"**
+
+- Rust 侧 230 个 `#[cfg]` 平台块：**macOS 156 / Windows 108 / Linux 66**。
+- 平台相关单测：windows 5 / macOS 5 / **linux 5**。
+- CI 确实有三平台矩阵（`cross_check.yaml:22-30`、`release.yml:186-198`），Linux **会被编译并发布**，但没有任何 Linux 专属功能测试。`core/sysopt.rs` 里 Linux 走的是**结构上不同**的分支（`:775` 的 `cfg(linux)`，对 3 处 `cfg(not(linux))`），天然更容易漂移。
+- **churn 量化**：过去一年 1547 个 commit，其中 chore 514 / **fix 506** / refactor 176 / feat 134 / perf 58 / docs 43 / **revert 35**——fix 加 revert 占 **35%**。单版本 changelog 条目数：v2.5.4 **63 条**、v2.5.2 61 条、v2.5.0 18 条、v2.5.5 17 条。
+- 真正烂掉的单文件是 `src-tauri/src/core/service.rs`：2719 行（生产代码 2053 行），6 个 `impl` 块，50 个 `#[cfg]`，`trusted_service_evidence()` 重复定义了 3 次（`:291` / `:326` / `:342`），`uninstall_service()` 4 次（`:596` / `:629` / `:688`）。
+
+**八、插件层还有一处结构性脆弱**
+
+Linux 上客户端不用 TCP 控制器，而是走 unix socket：`src-tauri/src/lib.rs:67-68` 把插件配成 `Protocol::LocalSocket`。插件侧 `get_websocket_url` 在这个分支里返回的是一个**假 URL** `ws://localhost/connections`（插件 `mihomo.rs:304`），再由 `client_async(request, stream)`（`mihomo.rs:432`）把它塞进一条真实 unix 连接。HTTP 与 SOCKS5 之外还有第三条 WebSocket 代码路径要维护，而它恰好是 Linux 独有的那条。
+
+#### 重启为什么能"修"好：它是最强的证据，不是解决方案
+
+关掉再打开客户端，连接面板就正常了。**这恰恰是这次排查的决定性证据**，但它不是修复。
+
+重启清掉的是**前端模块级状态**。`src/hooks/use-connection-data.ts` 把连接状态放在模块作用域里（不是 React state，组件卸载也不会带走它）：
+
+| 模块级变量 | 行 | 作用 |
+| :--- | :--- | :--- |
+| `socket` | `:272` | 当前 WebSocket 句柄 |
+| `connecting` | `:273` | 连接中标志 |
+| `connectionData` | `:39` | 累积的连接快照 |
+| `flushTimer` / `lastFlushAt` | `:41` / `:43` | 节流状态 |
+
+中毒路径正是前面那条：`:322` 先把 `socket = connected` 记下，`:323` 的 `addListener` 随后抛错 → `:333` 的裸 catch 安排重连 → 1 秒后 `connect()` 撞上 `:310` 的 `if (socket || connecting) return` 直接返回。于是**模块里躺着一个"连上了但没装监听器"的句柄**：核心侧照常推送连接快照，前端收到了却没有任何监听者去处理，表格永远空白；而此前每次重试留下的旧句柄再也没被 close，就成了核心侧那 9 条孤儿连接。
+
+重启把 `socket` 复位成 `null`，于是连接重新建立、监听器装上、面板恢复。**在应用内点任何东西都救不回来**：翻页卸载会走 `stopIfIdle` → `closeSocket`，但那只能关掉被 `socket` 记住的那一条，泄漏出去的旧句柄一个都管不着；于是"关掉再开"成了唯一出口。
+
+**重启前后的运行时计数**（同一台机、同一命令）：
+
+| | 重启前 | 重启后 |
+| :--- | ---: | ---: |
+| 控制器 socket 上 ESTAB 总数 | 17 | 11 |
+| 其中 peer inode = 0（对端已关的孤儿） | 9 | 3 |
+| 其中 Recv-Q > 0（缓冲区有数据没人读） | **9** | **0** |
+| 与 GUI 相连的活连接 | 8 | 8 |
+
+`Recv-Q > 0` 从 9 归零是这张表里最说明问题的一行：那些**被推送了数据却没人读**的僵尸订阅，随进程一起消失了。活连接数前后都是 8，说明核心从头到尾都在正常推送——坏的只是前端那一侧的读取。
+
+**所以"重启一下就好了"要反过来读**：
+
+1. 它是**定位工具**，不是修复。重启能修，说明故障在**进程内存状态**里，不在网络、不在磁盘、不在数据。这个排除法比翻十遍日志都快。
+2. 它同时是**证据销毁器**。重启把中毒的模块状态、泄漏的句柄、僵尸订阅全清掉，想复现就得从头再来。**所以顺序必须是：先取证，再重启。**
+3. 它是**这个 bug 能活到今天的原因**。失败既不弹提示（裸 catch + `errorNotice: false`），又不留痕迹（没有一行日志），唯一的表现就是"界面空了"。用户只能重启，然后把"重启好了"当成解决方案——于是**永远没有人提 issue**。
+
+第 3 点是重点：一个"重启能修"的问题，危害不在于它需要重启，而在于它**把用户训练成了重启，而不是一个提 issue 的人**。
+
+#### 验证手法
+三步都不需要改配置，全部只读：
+
+```bash
+# 1) 核心到底正不正常：手工做一次 WebSocket 握手
+#    期望看到 101 Switching Protocols，后面跟着实时的连接快照 JSON
+S="$HOME/.local/share/io.github.clash-verge-rev.clash-verge-rev/verge-mihomo.sock"
+curl -sS -i --unix-socket "$S" \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  http://localhost/connections | head -3
+```
+
+```bash
+# 2) 连接泄漏：ESTAB 总数 vs 其中"没人读"的条数
+#    两者拉开差距 = 客户端在偷偷重连
+ss -x | grep "$S" | awk '$2=="ESTAB"'            # 总数
+ss -x | grep "$S" | awk '$2=="ESTAB" && $3+0>0' # Recv-Q>0 = 挂在缓冲区没人读
+```
+
+```bash
+# 3) 排除"其实是代理没走通"：GUI 空白与 CLI 不通是两回事
+#    混口的端口同时支持 HTTP 与 SOCKS5，见第 2.2 节
+curl -sS -o /dev/null -w "%{http_code}\n" https://github.com/
+curl -sS -o /dev/null -x http://127.0.0.1:<proxy-port> -w "%{http_code}\n" https://github.com/
+```
+
+第 1 步的"期望 101"是整段排查的**分水岭**：拿到 101 就说明核心无罪，问题在客户端自己的前端逻辑，可以停止折腾网络。
+
+#### 解决方案
+
+**一、给上游提 issue 时，把"静默失败"改写成"有提示的失败"**
+
+最小改动集只有两处，但足以让下一个用户不再踩同一个坑：
+
+| 位置 | 现状 | 建议 |
+| :--- | :--- | :--- |
+| `src/hooks/use-connection-data.ts:333` | 裸 `catch { scheduleReconnect() }` | 记日志并走一次 `errorNotice`，不要无声重试 |
+| `src-tauri/src/core/tray/mod.rs:199-200` | 找不到托盘 → `Ok(())` | 与 `:179` 统一为 `Err(...)` |
+
+注意上游流程约束：`AGENTS.md` 规则 1 要求**先有 issue 再提 PR**，规则 4 不接受"顺手补测试"，规则 8 不接受顺手重构。所以 issue 要写成"Linux 上连接面板静默空白"这样的可复现缺陷，别写成"顺便加测试"。
+
+**二、不打算改上游时的自用绕法**
+
+- 想要连接明细就别用 GUI 的连接页，改从核心控制器直接读（unix socket 无需 secret，实测带错 secret 也返回 200）：
+  ```bash
+  curl -sS --unix-socket "$S" http://localhost/connections | python3 -m json.tool | head -40
+  ```
+- 托盘失效不影响代理本身，右键菜单用不了时直接走系统代理开关即可，不必为此重启核心。
+- 心跳式排查用上面第 2 步的 `Recv-Q` 计数，比翻日志快。
+
+**三、要不要换 FlClash：先看数据**
+
+以 GitHub release 资产下载量（近 111 / 73 个 release 的合计）为准：
+
+| | FlClash | Clash Verge Rev |
+| :--- | ---: | ---: |
+| Stars | 57,262 | **152,943** |
+| Linux 资产下载量 | 678,997（占其总量 4.0%） | **4,575,161（占 9.6%）** |
+| Linux 每 release 平均下载 | 6,117 | **62,673** |
+| 用户主体 | Android 51.9% | Windows 52.7% |
+
+**Linux 上 Clash Verge 的下载量是 FlClash 的 6.7 倍，star 是 2.7 倍。** FlClash 的用户主要在 Android，Linux 是它的边角平台。**换过去的理由不是"FlClash 人更多"或"FlClash 更稳"，而是 Clash Verge 的失败不报障**——这一条已经用源码和运行时连接数证实了。
+
+**供应链安全上 FlClash 反而更弱**：Clash Verge 的每个 Linux 资产都带 **minisign 签名**（`.sig`，`untrusted comment: signature from Tauri Secret key`），而 FlClash v0.9.1 **只有 `SHA256SUMS`，没有任何签名**。而 `SHA256SUMS` 与被校验的 `.deb` 同属一个 release、同一个账号——它只能证明"没被中间人改"，不能证明"来自作者"。所以装 FlClash 必须自己校验，方法见下。
+
+**安装第三方 GUI 客户端前的通用校验手法**（一次跑完，三个独立来源互证）：
+
+```bash
+# 1) 本地哈希
+sha256sum <下载的 .deb>
+
+# 2) 上游 release 页的 SHA256SUMS
+curl -sSL -o SHA256SUMS "<release 下载页>/SHA256SUMS"
+sha256sum -c SHA256SUMS --ignore-missing
+
+# 3) GitHub API 的 asset digest 字段（与 2) 是不同的来源）
+curl -sS "<api>/repos/<owner>/<repo>/releases/tags/<tag>" \
+  | python3 -c "import json,sys; [print(a['name'], a.get('digest')) for a in json.load(sys.stdin)['assets']]"
+```
+
+三者一致才算通过。有 `.sig` 的项目再补一步签名验证（minisign 需先装工具）。校验用 `<proxy-port>` 之类的占位符，别把真实端口写进任何会进版本库的文件。
+
+**四、迁移注意**
+
+FlClash 是 Flutter 应用（Dart 源码），托盘与系统代理的实现路径和 Clash Verge 完全不同，**配置与订阅要手动迁移**；它的更新节奏由 Android 侧需求驱动，Linux 未必更快。切换前先把 Clash Verge 的订阅链接和规则组导出一份留底。
+
+#### 为什么值得记
+
+这一类问题的通用形状是：**客户端把"我失败了"写成了"我成功了"，于是用户永远看不到错误，只能看到症状。**
+
+Clash Verge Rev 把它同时用在了三个地方——WebSocket 连接失败、托盘创建失败、托盘菜单更新失败——而且还把这套做法写进了 `AGENTS.md` 变成政策（测试默认不写、防御性代码算 PR 膨胀）。所以「升级后冒出新毛病、还不告诉你」的体感不是错觉：**35% 的年度提交是 fix 或 revert，托盘那 1010 行代码一个测试都没有，而 Linux 相关的功能测试只有 5 个。**
+
+排查这类问题的手法是通用的：**先证明下游是好的**（本次是手工握手拿到 101），**再在客户端自己的代码里找那个吞掉异常的地方**（本次是 `use-connection-data.ts:333` 的裸 catch），**最后用运行时计数交叉验证**（本次是核心侧 9 条 peer inode = 0 的孤儿连接）。三步都不需要猜。
+
+"重启一下就好了"之所以能成为跨平台的通用偏方，也是同一个道理：桌面系统里相当大一部分"怪毛病"本质上是**长驻进程里的状态泄漏**，而重启一次性把所有进程状态归零。但这个偏方在本次案例里暴露的东西比它修好的更多——它同时是**最强的定位工具**（故障在进程内存里，不在网络和数据）、**最彻底的证据销毁器**（重启后无法复现）以及**问题长期存活的真正原因**（用户被训练成重启而不是提 issue）。**通用规矩只有一条：重启之前先取证。**
+
+---
+
+### 2.20 更新器的「镜像不可达」横幅是误报：单发 HEAD 探测与 IPv4/IPv6 不对称
+
+#### 症状
+Linux Mint 的更新管理器（`mintupdate`）顶部弹出橙色横幅：
+
+```text
+Please switch to another mirror
+https://mirrors.tuna.tsinghua.edu.cn/linuxmint is unreachable.
+```
+
+反直觉的地方在于**同一时刻更新本身在正常下载**：进度条在跑、速率正常、包在往下装。点 OK 忽略后更新照常完成。换源、重启、重新登录都不影响它，或者过一会儿自己就好了。
+
+> 与第 2.3 节是**同一个组件的两种不同故障**：2.3 是"更新器连得慢、超时中断"，这里是"更新器谎报连不上"。两者根因不同、处置也不同，不要混为一谈。
+
+#### 根因剖析
+
+**一、横幅的判定条件写反了方向**
+
+`/usr/lib/linuxmint/mintUpdate/mintUpdate.py:1963` 的 `mirror_check()` 每次刷新时做两次探测：
+
+- 官方源 `http://packages.linuxmint.com/db/version` → `mint_timestamp`
+- 当前镜像 `<mirror>/db/version` → `mirror_timestamp`
+
+`:1990-1997` 的分支写得很明确：
+
+```python
+if mirror_timestamp is None:
+    if mint_timestamp is None:
+        # 官方源和镜像都连不上 → 认定没有互联网，什么都不弹
+        pass
+    else:
+        infobar_title = _("Please switch to another mirror")
+        infobar_message = _("%s is unreachable.") % mirror_url
+```
+
+**只有"官方源成功、镜像失败"才会弹这条横幅。** 所以"国内镜像连不上、国外官方源却能连"不是矛盾，而是**这个判据的必然结果**——它写成了"对照组成功、实验组失败"。两个都失败反而什么都不弹。
+
+`mirror_url` 是从 `/etc/apt/sources.list.d/official-package-repositories.list` 里那行含 `main upstream import` 的 Mint 源解析出来的（去掉末尾斜杠），所以横幅里显示的地址就是源文件里的地址。
+
+**二、探测是单发 HEAD，零重试**
+
+`mintUpdate.py:2030` 的 `get_url_last_modified()`：
+
+```python
+c.setopt(pycurl.CONNECTTIMEOUT, 10)
+c.setopt(pycurl.TIMEOUT, 30)
+c.setopt(pycurl.FOLLOWLOCATION, 1)
+c.setopt(pycurl.NOBODY, 1)      # 只发 HEAD
+c.setopt(pycurl.OPT_FILETIME, 1) # 靠响应的 Last-Modified 判定
+```
+
+**没有重试、没有退避、没有"上次成功过就放行"**。一次抖动 = 一次"镜像不可达"。而且它读的是响应头里的 `Last-Modified`——拿不到这个头就判失败，哪怕 HTTP 状态码是 200。
+
+**三、IPv4/IPv6 的不对称把概率放大了**
+
+| 域名 | 真 AAAA | 走哪一族 |
+| :--- | :--- | :--- |
+| `mirrors.tuna.tsinghua.edu.cn` | 有（`2402:f000:1:400::2`） | **IPv6** |
+| `packages.linuxmint.com` | **没有**（`getent ahostsv6` 只回 v4-mapped 形式） | IPv4 |
+
+家宽的 IPv6 由路由器 RA + DHCPv6 下发，链路一抖，挂掉的偏偏是走 IPv6 的 TUNA 那一次探测；走 IPv4 的官方源安然无恙。**两个条件叠加，正好命中横幅的判据。**
+
+**四、本机实测（横幅弹出时）**
+
+- 官方源探测：`200`，1.16 s
+- TUNA 探测：`200`，0.23 s
+- 复刻 `get_url_last_modified()` 连打 20 次：**0 失败**，延迟 0.18–2.77 s
+- 同一时刻 apt 正通过 IPv6 从同一个 TUNA 稳定下载（连接 ESTABLISHED，速率正常）
+
+也就是说，横幅弹出那一刻，**它要指控的那个镜像正在被它自己的兄弟进程正常下载着**。
+
+#### 验证手法
+
+```bash
+# 1) 手动复刻 mintupdate 的那一次探测：HEAD、30 秒超时、零重试
+curl -sS -I --max-time 30 https://mirrors.tuna.tsinghua.edu.cn/linuxmint/db/version | grep -i last-modified
+
+# 2) 分开测两族：哪一族在抖，一目了然
+curl -4 -sS -o /dev/null -w "v4 %{http_code} %{time_total}s\n" https://mirrors.tuna.tsinghua.edu.cn/linuxmint/db/version
+curl -6 -sS -o /dev/null -w "v6 %{http_code} %{time_total}s\n" https://mirrors.tuna.tsinghua.edu.cn/linuxmint/db/version
+
+# 3) 看两个域名有没有真 IPv6（getent ahostsv6 对纯 IPv4 域名会回 ::ffff: 形式）
+getent ahostsv6 mirrors.tuna.tsinghua.edu.cn
+getent ahostsv6 packages.linuxmint.com
+
+# 4) 决定性的一条：业务此刻正不正常？——证明"不可达"是假的
+IP=$(getent ahostsv6 mirrors.tuna.tsinghua.edu.cn | awk 'NR==1{print $1}')
+sudo ss -tnp | grep "$IP"
+```
+
+第 4 步是分水岭：**同一时刻下载正常 = 这是误报**，该查的是探测路径，不是源。
+
+#### 解决方案
+
+1. **点 OK 忽略即可**，不影响更新本身。横幅是健康检查的结论，不是更新的前置条件。
+2. **想让这次探测走 IPv4**：在 `/etc/gai.conf` 里加一条地址选择优先级
+   ```text
+   precedence ::ffff:0:0/96  100
+   ```
+   ⚠️ **注意：`apt.conf` 里的 `Acquire::ForceIPv4` 对它无效**——这次探测不走 apt，是 pycurl 直接发的，apt 的配置管不到它。想改探测行为，只能改系统级的地址选择。
+3. **换镜像解决不了"单发探测"本身**。换一个源只是把同一个脆弱探测换了个地址去问。
+4. **真正的根治在上游**：`get_url_last_modified()` 应当带一次有界重试，或者在探测失败时回退到"上次成功时间戳"做宽限；`:1993` 的分支也应当区分"刚刚失败一次"和"确实长期不可达"。
+
+#### 为什么值得记
+
+通用形状：**健康检查用单发无重试的探测，就会把偶发抖动翻译成"服务不可用"**。更巧的是这里的判据写成了"对照组成功、实验组失败"，于是横幅的内容方向和真实故障方向**正好相反**——它把"国内镜像"标成不可达，而真正脆弱的是那个判定逻辑本身。
+
+可复用的判别法只有一条，看到"某镜像 / 某服务不可达"时：**先确认同一时刻实际业务是否正常。** 业务正常就是误报，此时该做的是去查探测路径（重试？超时？地址族？），而不是去换源、去重装、去改证书、去折腾 DNS。
+### 2.21 更新管理器卡死时后台 `aptk` 长期占着 dpkg 锁，导致 apt 安装全线失败
+
+#### 症状
+
+想装一个小包，apt 直接拒绝：
+
+```text
+E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process <pid> (aptk)
+E: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?
+```
+
+更迷惑的是：**图形更新管理器的窗口已经关了**，锁却还在，apt 依旧全线不可用。
+本节对应的就是「更新管理器卡在下载上 → 顺手去装剪贴板工具 → 被 dpkg 锁挡住」这条真实链路（见第 2.5 节）。
+
+#### 根因剖析
+
+1. **持锁的不是窗口，是后台进程。** Linux Mint 更新管理器的后台组件是 `/usr/sbin/aptk`（Python 实现的 apt 封装）。它在抓取包索引、下载 deb 时会持有 dpkg 前端锁 `/var/lib/dpkg/lock-frontend`；窗口只是它的前端，**关窗口不等于终止它**。
+2. **下载一卡，锁就不放了。** 本次实测：aptk 的子进程 `/usr/lib/apt/methods/https` 僵在传输上，`etime` 超过 16 分钟、CPU 时间几乎不动（典型 TCP 停滞），锁却一直攥着。释放条件只有 apt 正常结束或进程被杀，**没有超时兜底**。
+3. **锁的粒度是全局的。** `apt install` / `apt upgrade` / `dpkg -i` 全都要这把锁。于是一个后台下载卡死，就能让整台机器装不了任何包——包括那些跟更新毫无关系的、随手要装的小工具。
+
+#### 解决方案
+
+先看清是谁在持锁，别去猜：
+
+```bash
+sudo fuser -v /var/lib/dpkg/lock-frontend
+ps -o pid,etime,cmd -p <上面输出的 PID>
+```
+
+`cmd` 里是 `/usr/sbin/aptk` 就说明是更新管理器；再 `pgrep -P <PID>` 看子进程，若挂着 `/usr/lib/apt/methods/https` 且长时间不动，就是它卡在下载上。
+
+三条路，按偏好挑：
+
+1. **等它自己结束**（最省事）：更新管理器跑完 / 正常退出后锁自动释放。本次实测：更新管理器跑完并关闭后锁立刻释放，随后 `sudo dpkg -i` 一次成功。
+2. **不想等时的绕行装法**：`apt-get download` **不取 dpkg 锁**，可以先把 deb 拉下来，再解包出二进制直接放进 PATH：
+
+   ```bash
+   mkdir -p /tmp/pkg-dl && cd /tmp/pkg-dl
+   apt-get download xclip
+   dpkg-deb -x xclip_0.13-3_amd64.deb x
+   sudo install -m 0755 x/usr/bin/xclip /usr/local/bin/xclip
+   ```
+
+   `/usr/local/bin` 在默认 PATH 中排在 `/usr/bin` 前面，优先级更高。解包不写 dpkg 数据库，此时 `dpkg -l xclip` 仍是未安装状态；等锁释放后再补一句正式登记：
+
+   ```bash
+   sudo dpkg -i /path/to/xclip_0.13-3_amd64.deb
+   ```
+
+3. **确认卡死后直接了结它**：`sudo kill <aptk 的 PID>`。它只是更新管理器的后台组件，杀掉后可以从图形界面重新打开，**不影响任何已安装的软件包**。
+
+#### 为什么值得记
+
+「更新管理器已经关了，apt 还是说锁被占用」这种自相矛盾的现象，几乎总会被误判成「有别的 apt 进程在跑」，于是开始找幽灵进程。**持锁者是后台 daemon，不是窗口**——先把 PID 和它的完整 `cmd` 打出来，再决定是等、是绕行、还是杀。

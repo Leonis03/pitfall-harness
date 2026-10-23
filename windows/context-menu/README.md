@@ -1,5 +1,5 @@
 
-> **生成时间**：2026-08-21  
+> **生成时间**：2026-08-21（第 1-7 节）；2026-10-18 追加第 8-10 节  
 > **文档位置**：桌面 (`右键菜单排查与优化总结.md`)
 
 ---
@@ -12,6 +12,9 @@
 5. [新增 Open in WSL 快捷右键菜单](#5-新增-open-in-wsl-快捷右键菜单)
 6. [WSL 终端历史命令联想补全（类似 pwsh）配置建议](#6-wsl-终端历史命令联想补全配置建议)
 7. [系统注册表改动清单](#7-系统注册表改动清单)
+8. [换机器复现时的差异](#8-换机器复现时的差异2026-10-18-实测)
+9. [三个必须现场取值的东西](#9-三个必须现场取值的东西)
+10. [本机落地结果](#10-本机落地结果2026-10-18)
 
 ---
 
@@ -140,4 +143,47 @@ source ~/.bashrc
 | `HKCU\\Software\\Classes\\Drive\\shell\\OpenInWSL\\command` | `(default)` | REG_SZ | `"...\wt.exe" -p "Ubuntu" -d "%1"` |
 | `HKCU\\Software\\Classes\\Directory\\Background\\shell\\OpenInWSL\\command` | `(default)` | REG_SZ | `"...\wt.exe" -p "Ubuntu" -d "%V"` |
 | `HKCU\\Software\\Classes\\Directory\\shell\\OpenInWSL\\command` | `(default)` | REG_SZ | `"...\wt.exe" -p "Ubuntu" -d "%1"` |
-"""
+
+---
+
+## 8. 换机器复现时的差异（2026-10-18 实测）
+
+第 2、5、7 节记的是 2026-08-21 那台机器（带 AMD 显卡驱动）。照抄会在别的机器上出错，实测差异：
+
+| 项 | 文档里的值 | 本机实测 |
+| :--- | :--- | :--- |
+| WSL 发行版名 | `Ubuntu` | **`Debian`** |
+| Terminal 图标来源 | 从官方包提取 `terminal.ico` | 包里**只有** `terminal_contrast-black.ico` 与 `terminal_contrast-white.ico`，没有普通版 |
+| AMD Catalyst CLSID | 加入 Blocked 屏蔽 | 本机 HKCR **根本没注册**（无 AMD 驱动） |
+| 菜单显示位置 | 未说明 | `shell\` 下的传统词条只出现在**「显示更多选项」**（Shift + 右键）里 |
+
+## 9. 三个必须现场取值的东西
+
+发行版名必须查，不能照抄。`wt.exe -p "Ubuntu"` 里的 `-p` 传的是 **Windows Terminal 的 profile 名称**，不是 WSL 发行版名。名字对不上时 wt 报错或回落到默认 profile，于是「Open in WSL」打开的是 PowerShell 而不是 WSL。profile 名在 settings.json 里：
+
+```powershell
+(Get-Content "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json" -Raw | ConvertFrom-Json).profiles.list |
+  Where-Object { $_.source -eq 'Microsoft.WSL' } |
+  Select-Object name, guid
+```
+
+图标从已安装的包里取（包目录带版本号，会随更新变化，所以现取）：
+
+```powershell
+$wt = (Get-AppxPackage -Name Microsoft.WindowsTerminal | Select-Object -First 1).InstallLocation
+Copy-Item "$wt\Images\terminal_contrast-black.ico" "$env:LOCALAPPDATA\Microsoft\WindowsTerminal\terminal.ico"
+```
+
+**别用 `Icon.ExtractAssociatedIcon` 从 exe 抽图标。** 本机实测抽出来只有 766 字节（单尺寸），放进右键菜单放大发虚；包里那份是 43 KB 多分辨率，两个变体选一个即可。
+
+屏蔽扩展前先确认它注册过：
+
+```powershell
+Test-Path 'Registry::HKEY_CLASSES_ROOT\CLSID\{fdadfee3-02d1-4e7c-a511-380f4c98d73b}'
+```
+
+## 10. 本机落地结果（2026-10-18）
+
+10 个词条全部注册并读回验证（`WindowsTerminal` ×5、`OpenInWSL` ×5），Icon 属性统一指向 `%LOCALAPPDATA%\Microsoft\WindowsTerminal\terminal.ico`，命令里的 `-p` 按本机改为 `Debian`。改动前这 10 个键一个都不存在，所以无需备份。
+
+> 这段配置**没有**做成 `.reg` 原件：`wt.exe` 路径和 `-p` 的发行版名都是机器相关的，`.reg` 无法参数化，写死反而误导。要复用请照第 7 节的表在目标机器上重建，取值方式见第 9 节。

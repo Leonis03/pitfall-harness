@@ -42,7 +42,8 @@ Config README Skill
 | Windows 11 + WSL2（Ubuntu 24.04 → Fedora 44 迁移中） | [`wsl/`](wsl/) · [`windows/`](windows/) |
 | 原生 Linux 桌面（Linux Mint 22） | [`linux-desktop/`](linux-desktop/) |
 | 上面两者共用的 bash / zsh 四层配置 | [`shell/`](shell/) |
-| Android（Termux root chroot、荣耀平板 Linux Lab） | [`agent/skills/`](agent/skills/) 下的 `android-chroot-debian` 等四个 skill |
+| Android（Termux root chroot） | [`agent/skills/`](agent/skills/) 下的 `android-chroot-debian` 等 skill |
+| 荣耀平板 Linux 实验室（PRoot 容器） | [`honor-linuxlab/`](honor-linuxlab/) · [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/) |
 | 租用的云 GPU（DeepLN） | [`agent/skills/deepln-setup/`](agent/skills/deepln-setup/) · [`gpu-cuda-checks/`](agent/skills/gpu-cuda-checks/) |
 
 > **AI agent 请先读 [`AGENTS.md`](AGENTS.md)**：目录地图、「要做 X 改哪些文件」对照表、必须一起改的文件、提交前检查。
@@ -106,12 +107,19 @@ WSL 专属的互操作函数在原生 Linux 上靠 `/proc/version` 检测自动�
 
 ### [`windows/`](windows/) —— Windows 侧
 
-[`terminal/`](windows/terminal/)（Windows Terminal 配置）· [`powershell/`](windows/powershell/)（PowerShell 7 profile、PSReadLine、一键关闭所有资源管理器窗口、关闭 / 强制关闭 Typora）· [`ime-keyboard/`](windows/ime-keyboard/)（卸载语言后残留的键盘布局、拼音首字母漏成英文的排查清单）· [`context-menu/`](windows/context-menu/)（右键菜单项排查与优化）· [`windows-update/`](windows/windows-update/)（把功能更新钉在 24H2，但保留更新可见性）
+[`setup/`](windows/setup/)（LTSC 环境配置 runbook，可整份交给 Agent 执行）· [`files/`](windows/files/)（可部署原件）· [`terminal/`](windows/terminal/)（Windows Terminal 配置）· [`powershell/`](windows/powershell/)（PowerShell 7 profile、PSReadLine、一键关闭所有资源管理器窗口、关闭 / 强制关闭 Typora）· [`ime-keyboard/`](windows/ime-keyboard/)（卸载语言后残留的键盘布局、拼音首字母漏成英文的排查清单）· [`context-menu/`](windows/context-menu/)（右键菜单项排查与优化）· [`windows-update/`](windows/windows-update/)（把功能更新钉在 24H2，但保留更新可见性）
 
 ### [`linux-desktop/`](linux-desktop/) —— 原生 Linux 桌面
 
 Linux Mint 22（Ubuntu 24.04 noble 底座）上的复刻记录：换源、代理与 `sudo`、`chsh`、fcitx5、剪贴板、
 Ghostty 与 Nemo 右键菜单、多设备历史命令迁移。`files/` 下是 Ghostty 配置与 Nemo action 原件。
+
+### [`honor-linuxlab/`](honor-linuxlab/) —— 荣耀平板 Linux 实验室
+
+第三类环境，也是最容易配错的一类：PRoot 容器里 `127.0.0.1` 就是容器自己，全机没有任何代理软件。
+记录官方内置知识库与官方助手都没覆盖的部分——终端代理变量层、locale 与输入法的冲突，
+以及 28 个官方知识单元的逐条覆盖度比对（见 [`docs-gap.md`](honor-linuxlab/docs-gap.md)）。
+可执行的流程在 [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/)。
 
 ### [`agent/`](agent/) —— AI 工具链
 
@@ -190,8 +198,14 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **PRoot 下 xrdb 无超时挂死整个桌面** | 荣耀平板 Linux 实验室切 Debian 永久卡在「加载中」，`xrdb -merge` 系统调用死锁阻断 `StartFinished` 握手信号；修改 `start` 会被 `AssetsPatcher` 校验覆写，需用子程序 wrapper 拦截规避 | [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/) |
 | **ARM64 换 Ubuntu 镜像源必须用 ubuntu-ports** | 平板换清华源后 `apt update` 报 404 找不到 `binary-arm64/Packages`，因为非 x86 架构在独立路径下 | [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/) |
 | **`execve` 与 `/proc/self/exe` 解耦** | 命令执行报 `readlink /proc/self/exe: no such file`，误以为内核无法派生进程。Linux `execve(2)` 本身不依赖 `/proc`，是 Go/CLI 运行器做自省与路径解析时受阻，挂载 `/proc` 仅是满足运行时自省而非提权 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **清华源只镜像 PyPI，不镜像解释器** | `pypi.tuna.tsinghua.edu.cn/simple` 是 200，而 `github-release/astral-sh/python-build-standalone` 是 404，所以 `python-install-mirror` 不能指清华——那是根本没有，不是慢。另外 `python-install-mirror` 必须是纯字符串，写成 `[python-install-mirror]` 表会报 `invalid type: map, expected a string`，且**整个 uv.toml 一起失效**，连索引也不生效 | [`tools/python/`](tools/python/) 第 5 节 |
+| **CPython 出了新补丁版要先升 uv** | CPython 3.12.15 于 2026-09-30 发布，但 uv 0.12.18（2026-09-22 构建）最高只列到 3.12.14：下载清单是编译进二进制的，不是运行时查的。上游已 release ≠ 本机装得上 | [`tools/python/`](tools/python/) 第 5 节 |
 | **`unshare -m` 隔绝了父子会话挂载** | 宿主更新了 chroot 挂载且 `--check` 通过，已运行的 agent 依然报 `open /dev/ptmx: no such device`。`unshare -m` 创建了独立 Mount Namespace，旧终端里的 `bash` 未退出导致重启的 agent 仍困在旧命名空间 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
 | **Android Termux 报 `required file not found`** | 执行官方安装的 CLI 工具报文件未找到，但 `ls` 明明在；`readelf -l` 发现其 `PT_INTERP` 请求 `/lib/ld-linux-aarch64.so.1`，而 Android 原生使用 Bionic libc（`/system/bin/linker64`），内核找不到 glibc 解释器返回 ENOENT，必须用 chroot/glibc 容器 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **代理变量指向一个会消失的端口** | 代理是宿主 Android 上的一个**应用**，而 chroot 与宿主共享 network namespace，所以 `127.0.0.1:<端口>` 能通到它——但只在应用运行时。把它关掉，所有走代理的请求立刻 refused，而直连本来是通的。更坑的是 **TUN 模式下代理正常工作、端口却始终不开**，于是端口探测会把一个活着的代理报成 refused：先测请求通不通，再看端口 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **一个端口不能同时当 HTTP 和 SOCKS** | `ALL_PROXY=socks5h://...:<端口>` 报 "Connection reset by peer"，而同一端口上的 `HTTP_PROXY` 正常。WSL 原配置用的是混合端口，但本机这个代理软件占两个口：HTTP 一个、SOCKS5 另一个（握手分别是 `05 00` 和 `HTTP/1.1 200 Connection established`）。一个端口一个变量，永远分开写 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **写死的 messaging socket 路径让会话互相挤掉** | 第二个实例死于 "--messaging-socket-path points to a live socket"，而 peer 通知全落进持有该路径的那个会话，于是另一个 Termux session 看起来被消息刷屏。CLI 自己的约定是每个会话在 `cc-socks` 目录下各占一个 socket 文件，靠扫描目录发现 peer；写死文件名把两件事都破坏了。另外 `CLAUDE_CODE_MESSAGING_SOCKET` 的优先级高于命令行参数 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **`${PATH#...}` 删掉的不止它匹配的那一段** | 为把某个目录提到 PATH 最前面而重排，会静默丢掉另一个目录：`#` 剥离的是**最短**前缀，排在匹配段之前的那个条目会一起没了。这里整个 pnpm bin 目录消失，`mcode`、`mcode-tools`、`pnpm`、`pnpx` 一并不见。要移动就按段重建整个列表 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
 | **热插拔移动硬盘在 chroot 隔离中失明** | 进入 Debian 容器后再插入移动硬盘，Android 正常识别但容器内 `/android/mnt/media_rw` 为空。`unshare -m` 与 `rprivate` 阻断了挂载传播，需通过 `nsenter -t 1 -m` 穿透宿主命名空间动态桥接挂载 | [`agent/skills/termux-debian-external-drive/`](agent/skills/termux-debian-external-drive/) |
 | **NTFS 权限伪造阻断 SSH 密钥认证** | 移动硬盘上私钥执行 `chmod 600` 虽返回 0 但底层 FUSE 驱动固化为 `770`，触发 OpenSSH 门禁拒连；必须用 `tar` 归档保留 POSIX 权限并在本地 Linux 文件系统解压 | [`agent/skills/termux-debian-external-drive/`](agent/skills/termux-debian-external-drive/) |
 | **Android Bionic Linker 命名空间断裂与 Magisk 桩覆写** | 在 Debian chroot 内直接调用宿主 `/system/bin/settings` 报 `cannot execute` 或动态链接器崩溃（`file offset for libutils.so >= file size: 0 >= 0`）。Magisk tmpfs 覆写了动态库且链接器缺少运行时拓扑，必须使用单维度 `nsenter -t 1 -m` 穿透宿主 Mount Namespace 执行 | [`agent/skills/android-miui-settings/`](agent/skills/android-miui-settings/) |
@@ -201,7 +215,7 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **Clash 桌面系统代理对 CLI 穿透失效** | 桌面浏览器能翻墙但终端直连超时；`bx` 遇 `socks5h` 报 exit 5 | [`linux-desktop/`](linux-desktop/) 第 2.2 节 |
 | **Linux Mint 22 换源脱靶与更新超时** | 误改 ubuntu.sources 丢 Mint 桌面仓库；官方海外源 300 kB/s 掐断更新器。双轨切清华 TUNA 源提速 16 倍 | [`linux-desktop/`](linux-desktop/) 第 2.3 节 |
 | **安装脚本污染 Shell 四层分层** | `pnpm setup` 与 nvm 自动追加 rc 文件破坏单一真相来源 | [`linux-desktop/`](linux-desktop/) 第 2.4 节 |
-| **终端粘贴快捷键提示无剪贴板工具** | CLI 按 Ctrl+V/Alt+V 报 `no supported clipboard tool`；原生桌面缺 `xclip`/`wl-clipboard` | [`linux-desktop/`](linux-desktop/) 第 2.5 节 |
+| **终端粘贴快捷键提示无剪贴板工具** | CLI 按 Ctrl+V/Alt+V 报 `no supported clipboard tool`（agy），或在 Claude Code 里静默失败——只弹一句 `No image found in clipboard.`，那句 `Image in clipboard` 提示永不出现；原生桌面缺 `xclip`/`wl-clipboard`。Claude Code 每次按键现取工具，装完无需重启（Go 系 CLI 则在 init 期缓存 `LookPath`） | [`linux-desktop/`](linux-desktop/) 第 2.5 节 |
 | **GNOME Terminal 静默丢弃 OSC 52 剪贴板** | `/copy` 提示复制成功但系统剪贴板为空；VTE 长期缺 OSC 52 写入，推荐 Ghostty | [`linux-desktop/`](linux-desktop/) 第 2.6 节 |
 | **历史命令迁移引发 Zsh corrupt history** | 拼接多设备历史后 Zsh 启动崩溃；包含 `\x00` 空字节破坏解析，需清洗归一化 | [`linux-desktop/`](linux-desktop/) 第 2.7 节 |
 | **`sudo` 清洗代理导致 APT 海外源超时** | 普通终端能翻墙但 `sudo apt` 连 Typora 超时；`env_reset` 剥离变量，需设 `sudoers` 白名单 | [`linux-desktop/`](linux-desktop/) 第 2.8 节 |
@@ -216,6 +230,21 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **Fontconfig 缺字回退跌入繁体/旧字形与衬线体失配** | 优先级 65 的 Droid Sans Fallback 抢跑 Noto CJK（优先级 70）引入台版旧字形；归一化 zh-Hans 并顶置 Noto Sans/Serif SC | [`linux-desktop/`](linux-desktop/) 第 2.14 节 |
 | **Fcitx 5 Rime 横向候选栏劫持左右键阻断拼音编辑** | 横向单行候选条下 selector 抢先拦截左右方向键致无法在拼音串中移动光标；覆盖解绑 selector 恢复原地修改 | [`linux-desktop/`](linux-desktop/) 第 2.15 节 · [`linux-desktop/gui-and-ime.md`](linux-desktop/gui-and-ime.md) |
 | **pnpm 12 默认阻断构建脚本与 24 小时发布冷却门禁** | `pnpm add -g` 弹出 `approve-builds` 交互选择并拦截 24 小时内新包（`minimumReleaseAge`）。**可选**，仅适用于只跑个人 Vibe Coding 的机器：配置 `dangerouslyAllowAllBuilds: true` 与 `minimumReleaseAge: 0` 直通放行；不采用则改用 `pnpm add -g --allow-build=<具体包名>` 逐包放行 | [`linux-desktop/`](linux-desktop/) 第 2.16 节 |
+| **荣耀平板：代理变量指向死端口** | pnpm 报 `tunnel error ... connection refused (os error 111)`、npm 一直转圈，但浏览器和 `apt` 都正常——`~/.shell_common` 把代理导出到了一个没人监听的本地端口，而浏览器用自己的设置、无视这些变量。先探测端口：refused 就清变量，open 就别动 | [`honor-linuxlab/`](honor-linuxlab/) 第 2.1 节 |
+| **荣耀平板：fcitx5 不出候选词** | `Ctrl+空格` 能切换但无候选词。两条根因叠加：`~/.config/fcitx5/profile` 的活动组首项是 `keyboard-us` 而不是 `pinyin`；缺 `~/.config/fcitx5/config` 则只剩出厂的 `Ctrl+空格`，而这个键在实体外接键盘上被 MagicOS 拦成系统语言切换。**与 locale 无关**——locale 改动发生在故障报出 20 分钟之后，只因紧接着被问起才看起来像因果 | [`honor-linuxlab/`](honor-linuxlab/) 第 2.2 节 |
+| **荣耀平板：某些组合键根本进不到容器** | 输入要穿过 Android 宿主、X server、应用三层，宿主对部分组合键有独占定义。`Ctrl+Shift+V` 在实体键盘上是死的（连 Qt 快捷键编辑器都收不到事件），而 `Ctrl+Shift+C` 等其它字母正常。`xdotool key` 可以用来区分是第 1 层还是第 2、3 层。解法是换到空闲字母，**容器内改任何配置都碰不到第 1 层** | [`honor-linuxlab/`](honor-linuxlab/) 第 2.3 节 |
+| **Node 大版本升级作废全部原生模块** | Node 22 一变 24，`better_sqlite3.node was compiled against NODE_MODULE_VERSION 127 ... requires 137` 当场炸；报错却归咎于 npm 构建脚本，提示传 `--allow-scripts`——而包其实是 pnpm 装的、脚本当初成功跑过，照做全无用处。每次升 Node 大版本后，必须把所有带原生依赖的全局包重装一遍 | [`linux-desktop/`](linux-desktop/) 第 2.17 节 |
+| **Ghostty 静默忽略未知配置键** | `shell = /usr/bin/zsh` 不报错、也毫无效果——该键名是 `command`，而 Ghostty 1.3.1 对不认识的键一声不吭。`+show-config` 同样分辨不出；只有 `+validate-config` 会带行号报出 `unknown field` | [`linux-desktop/`](linux-desktop/) 第 2.18 节 · [`linux-desktop/files/ghostty/config`](linux-desktop/files/ghostty/config) |
+| **Clash Verge Rev 把自己的失败当成功上报** | 连接面板永远空白、托盘菜单失效，全程没有任何报错：WebSocket 连接失败被吞成每秒重连，托盘找不到时直接 `Ok(())`。静默失败是上游写进政策的，不是个案——85 个百行级 Rust 文件里 48 个零测试，Linux 只被编译和发布，从不做功能测试 | [`linux-desktop/`](linux-desktop/) 第 2.19 节 |
+| **更新器的「镜像不可达」横幅是误报** | 界面指控镜像连不上，同一时刻 apt 正在从该镜像满速下载：探测是一次零重试的 HEAD，且只在「官方源成功、镜像失败」时才弹——横幅指向的方向和真实故障正好相反 | [`linux-desktop/`](linux-desktop/) 第 2.20 节 |
+| **更新管理器卡死时后台 `aptk` 仍占着 dpkg 锁** | 更新窗口都关了，`apt-get install` 仍报 "Could not get lock /var/lib/dpkg/lock-frontend ... held by process (aptk)"——持锁的是后台 daemon 而非窗口本身。可用 `apt-get download` + `dpkg-deb -x` 解包进 `/usr/local/bin` 绕行，锁释放后再 `dpkg -i` 正式登记 | [`linux-desktop/`](linux-desktop/) 第 2.21 节 |
+| **桌面会话脚本写死 `SHELL`，`/etc/passwd` 永远到不了终端** | `usermod -s <shell>` 执行成功、`/etc/passwd` 里也确认改了，可终端开出来还是旧 shell——LinuxLab 的 `start-desktop.sh` 在 LXQt 起来之前直接 `export SHELL=/bin/bash`，整棵会话树都继承了它。**重启桌面也救不回来** | [`honor-linuxlab/`](honor-linuxlab/) 第 2.4 节 |
+| **Linux Lab 里 `chsh` 必然失败** | `Password: chsh: PAM: System error`，且 `/etc/passwd` 毫无变化：容器不跑 PAM，`chsh` 每次都卡在认证阶段。改用 `sudo usermod -s`；注意它只修 `/etc/passwd`，会话那一层还得单独处理 | [`honor-linuxlab/`](honor-linuxlab/) 第 2.5 节 |
+| **没有 `add-apt-repository`，且所有 keyserver 都不可达** | 那个二进制是个拦截壳，真实目标并不存在；而 `keyserver.ubuntu.com`、`launchpad.net`、`keys.openpgp.org` 一律返回 `000`，只有 `ppa.launchpadcontent.net` 返回 `200`。唯一出路是 `[trusted=yes]`，这是**主动的安全降级**，必须当降级记录下来 | [`honor-linuxlab/`](honor-linuxlab/) 第 2.6 节 |
+| **`[pip] index-url` 管不到 uv 自己的解析器** | `uv pip install` 走镜像，`uv add` / `uv sync` / `uv run --with` 却仍打 pypi.org：它们读的是 `[[index]]`，是另一张表。两个都配，再用 `uv -v` 确认实际连的是哪个域名 | [`tools/python/`](tools/python/) 第 5 节 |
+| **仓库自带的两道门禁缺输入时会静默降级** | 缺 `tools/.sync-map` → `sync-skills.sh` 直接 exit 2，skill 核对与部署能力整体失效；缺 `tools/.privacy-names` → `privacy-gate.sh` 打印 `the literal-name check was skipped` 后**照样 exit 0**。两者第一眼都不像故障 | [`tools/README.md`](tools/README.md) |
+| **`bash -lc` 与 `bash -ic` 解析出的 PATH 不是一回事** | Debian 的 `~/.bashrc` 对非交互 shell 提前 return，于是「登录但非交互」的 shell 根本不读 `~/.shell_common`：nvm 缺失，`node` 回落到 `/usr/bin/node`（交互 shell 报 v24 时它还是 v22）。用一种形式验证、在另一种形式里使用，就会得出「改动没生效」的错误结论 | [`shell/`](shell/) |
+| **`Add-AppxPackage` 说的是「缺框架」而不是「包坏了」** | 装 winget v1.29.380 报 `0x80073CF3 ... depends on a framework that could not be found`，而机器上明明已经列出了 `WindowsAppRuntime` —— 那是 `.CBS` 变体，包名不同，部署校验不认 | [`windows/terminal/winget-and-terminal-without-store.md`](windows/terminal/winget-and-terminal-without-store.md) 第 2.2 节 |
 
 ---
 
@@ -227,7 +256,7 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 
 | 范围 | 许可证 | 覆盖什么 |
 | :--- | :--- | :--- |
-| 代码与配置 | [MIT](LICENSE) | 所有**非** `.md` 的文件——`tools/` 与 `agent/skills/*/scripts/` 下的 `.sh` / `.py`、`windows/` 下的 `.ps1`、`shell/files/`、`wsl/setup/files/`、`linux-desktop/files/` 下的配置原件、`.gitignore` |
+| 代码与配置 | [MIT](LICENSE) | 所有**非** `.md` 的文件——`tools/` 与 `agent/skills/*/scripts/` 下的 `.sh` / `.py`、`windows/files/` 下的 `.ps1` 与 `.reg`、`shell/files/`、`wsl/setup/files/`、`linux-desktop/files/` 下的配置原件、`.gitignore` |
 | 文档 | [CC BY 4.0](LICENSE-DOCS) | 所有 `.md` 文件——两个 README、各目录的说明、skill 正文、踩坑记录与取证分析 |
 
 拆开是因为 **Creative Commons 自己不建议把 CC 用于软件**，FSF 亦然（CC BY 4.0 虽是自由许可证、也兼容 GPL，但「should not be used on software」），而 OSI 从未批准过任何 CC 许可证。CC BY 4.0 §2(b)(2) 明示**不授予专利权**，§6(a) 规定违约**自动终止**（§6(b) 给 30 天补救），§2(a)(5)(B) 还禁止施加技术保护措施——这些条款对散文无害，对会被反复复制的脚本是真麻烦。
@@ -236,7 +265,7 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 
 下列部分**不属于**上面两个许可证，版权归各自作者：
 
-- `windows/powershell/SamplePSReadLineProfile_GitHub.ps1` —— [PowerShell/PSReadLine](https://github.com/PowerShell/PSReadLine) 官方示例的逐字副本，694 行，Copyright (c) 2013 Jason Shirk，**BSD-2-Clause**。完整声明已写在该文件头部。
+- `windows/files/reference/SamplePSReadLineProfile_GitHub.ps1` —— [PowerShell/PSReadLine](https://github.com/PowerShell/PSReadLine) 官方示例的逐字副本，729 行，Copyright (c) 2013 Jason Shirk，**BSD-2-Clause**。完整声明已写在该文件头部。
 - `agent/skills/find-skills/` —— 取自 [vercel-labs/skills](https://github.com/vercel-labs/skills) 的 `skills/find-skills/`，**MIT**。单独发布的 skill 仓库不收录它。
 - `agent/skills/skill-creator/` —— 取自 [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official) 的 `plugins/skill-creator/skills/skill-creator/`，Copyright Anthropic，**Apache-2.0**（许可证全文随目录附在 `LICENSE.txt`）。原样拷贝、未修改；单独发布的 skill 仓库不收录它。
 - `shell/files/bashrc` 保留了 Debian 出厂 `.bashrc` 的若干片段（`shopt -s checkwinsize`、`lesspipe`、`dircolors`、`alias ll=` 等）。

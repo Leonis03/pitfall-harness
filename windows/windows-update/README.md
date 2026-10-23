@@ -2,12 +2,16 @@
 
 把 Windows 11 钉在 24H2，不让它推 25H2；同时**仍然能在设置里看到**质量更新、Defender 定义、可选更新，并保留驱动更新。
 
-目录里两个 `.reg`，都是纯 ASCII、LF 行尾，导入后重启（或 `gpupdate /force`）生效。
+原件在 [`../files/windows-update/`](../files/windows-update/)，都是纯 ASCII、CRLF 行尾（根目录 `.gitattributes` 把 `*.reg` 钉成 `eol=crlf`；regedit 要的就是 CRLF），导入后重启（或 `gpupdate /force`）生效。
 
 | 文件 | 做什么 | 什么时候用 |
 | :--- | :--- | :--- |
-| [`wu-stay-24h2-notify.reg`](wu-stay-24h2-notify.reg) | 钉版本 + 下载/安装前通知 | **常用的一份。** 明确不想要下一个功能更新 |
-| [`wu-notify-minimal.reg`](wu-notify-minimal.reg) | 只改通知策略，不钉版本 | 只想要「更新前先问我」，功能更新照常推 |
+| [`wu-stay-24h2-notify.reg`](../files/windows-update/wu-stay-24h2-notify.reg) | 钉版本 + 下载/安装前通知 | **常用的一份。** 明确不想要下一个功能更新 |
+| [`wu-notify-minimal.reg`](../files/windows-update/wu-notify-minimal.reg) | 只改通知策略，不钉版本 | 只想要「更新前先问我」，功能更新照常推 |
+
+> **`.reg` 里的版本号是写死的**（`ProductVersion "Windows 11"` / `24H2`）。在别的版本上导入会得到
+> 一个你**没打算要**的钉版本策略。导入前先确认当前版本：
+> `(Get-CimInstance Win32_OperatingSystem).Version`
 
 ## 两组键各管什么
 

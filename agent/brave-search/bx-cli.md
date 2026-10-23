@@ -81,7 +81,11 @@ bx --version                      # -> bx 1.7.0
 md5sum ~/.local/bin/bx            # -> 应与升级前一致
 ```
 
-**本机当前状态**：`bx 1.7.0`，wrapper（289 字节，md5 `6d220261...`）+ `bx-bin`（2,102,080 字节静态 ELF）。1.5.0 的旧二进制备份在 `~/chat/bx-backup-1.5.0/`。
+**WSL 那台机器的状态（2026-09-15 记录，未在本轮复测）**：`bx 1.7.0`，wrapper（289 字节，md5 `6d220261...`）+ `bx-bin`（2,102,080 字节静态 ELF）。1.5.0 的旧二进制备份在 `~/chat/bx-backup-1.5.0/`。
+
+> 下文凡写「本机 Windows」的地方指 Windows 那台，**2026-10-17 已复测为 `bx 1.7.0`**；
+> 这行是 WSL 的状态，md5 与字节数只对那台机器成立，换机器请用 `bx --version` 和
+> `wc -c ~/.local/bin/bx` 重新量。
 
 ### 从源码构建（可选）
 
@@ -213,7 +217,10 @@ bx news "typora" --freshness pm --count 2 | jq -r '.results[] | "\(.title)  [\(.
 
 注意：
 - 升级 `bx` 会重新生成 `bx.exe`，与 `bx.cmd` 并存时 PowerShell 优先解析 `.exe` 而绕过 wrapper，症状会原样回来。升级后把新 `bx.exe` 覆盖成 `bx-bin.exe` 即可。
-- 本机 Windows 上是 `bx 1.5.0`，与上文 WSL 的 1.7.0 不同，wrapper 逻辑与版本无关。
+- 本机 Windows 上是 `bx 1.7.0`（2026-10-17 用 `setup-bx-windows.ps1` 装齐），与上文 WSL 一致。wrapper 逻辑与版本无关。
+- ⚠️ `bx news` 的 `.age` 在 **1.7.0 上是纯字符串**（实测 `"5 days ago"`、`"1 day ago"`、`"2 weeks ago"`），
+  不是本节上面那份 JSON 样例里的**数组**。`.age | join(", ")` 或 `(.age|tostring)` 这类写法会报
+  `Cannot iterate over string`。直接内插 `[\(.age)]` 两种形状都能用，所以上面的 jq 配方没踩到。
 - 看到 `Connection refused` 先别怀疑代理：`Test-NetConnection 127.0.0.1 -Port <proxy-port>` 和上表的 curl 对照两步就能区分。
 
 ---
@@ -366,9 +373,16 @@ bx news "AI capex" --freshness 2026-09-01to2026-09-14    # ✅ 日期区间，v1
 
 **`.age` 是 bx 相对内置 WebSearch 的最大优势**——给出精确发布日期：
 
-```json
-"age": ["Thursday, April 16, 2026", "2026-04-16", "151 days ago", "2026-04-16T00:00:00Z"]
-```
+> ⚠️ **形状以 `--count` 的实测为准，v2 早期样例不可照抄。** 2026-10-17 在 bx 1.7.0 上实测 `.age`
+> 是**纯字符串**（`"5 days ago"`、`"1 day ago"`、`"2 weeks ago"`）。下面这份数组是早期样例，保留是为了
+> 说明 bx 在 `results[]` 里**还可能带 `age` 等相对时间字段**这一类信息，不要当成固定 schema：
+>
+> ```json
+> "age": ["Thursday, April 16, 2026", "2026-04-16", "151 days ago", "2026-04-16T00:00:00Z"]
+> ```
+>
+> 想要精确到日的发布日期，用 `--freshness 2026-09-01to2026-09-14` 这种**日期区间**过滤，
+> 比解析相对时间字符串可靠。写 jq 时先 `.age|type` 确认形状，别直接 `join(", ")`。
 
 ### 7.4 `bx images` / `bx videos`
 

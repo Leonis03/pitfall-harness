@@ -20,6 +20,23 @@
 | 工具链 | git 2.55.0（git-core PPA）· gh 2.93.0 · node v24.21.0 (nvm 0.40.4) · pnpm 12.6.0 · uv 0.12.5 (Python 3.12) |
 | 互操作 | `appendWindowsPath=false` + 显式函数桥接 |
 
+**第二台机器（2026-10-17 实测，笔记本）**
+
+系统重装后用 `wsl --import-in-place` 复用旧 vhdx 恢复的发行版，见
+[`../storage/wsl-distro-move-to-d-drive.md`](../storage/wsl-distro-move-to-d-drive.md) 的「复用已有 vhdx」一节。
+这台机器与上面的参考环境有三处**结论不一致**，改动前先确认你适用哪一台：
+
+| 项 | 值 | 与参考环境的差异 |
+| :--- | :--- | :--- |
+| 发行版 | Debian GNU/Linux 13 (trixie) | 非 Ubuntu；步骤 2 的换源 sed 目标是 `ubuntu.sources`，见 [`../distro-differences.md`](../distro-differences.md) 第五节 |
+| WSL | **3.0.1.0**（Store 通道，内核 `6.18.40.1-microsoft-standard-WSL2`） | 跨过了 2.x；`--import-in-place` 仍在，但 `--get-default-version` 已被移除，`--manage <Distro> --compact` 是新增动词（见维护章节） |
+| systemd | 257.13-1~deb13u1 | **`systemctl --user` 正常**，`/run/user/1000` 存在。第一节的「systemd ≥ 256 起不了 user session」在这台上**不复现**，见 [`../distro-differences.md`](../distro-differences.md) 第一节的更正 |
+| 工具链 | git 2.47.3 · gh 2.46.0 · node v24.21.0 · npm 11.19.0 · pnpm 12.6.0 · uv 0.12.18 | git / gh 用 Debian 仓库版，没有 PPA |
+| 硬件 | 15.7 GB 内存 / **8** 逻辑处理器 | `files/wslconfig` 里的 `processors=8` 是按 12 逻辑核调的，这台改成了 `processors=6` |
+
+> 这台机器上 `files/wslconfig` 原件里的注释保留、数值重算后再部署（`processors=8` → `6`）。
+> `files/` 里存的是**主桌面那台**的原件，两台不要互相覆盖。
+
 ---
 
 ## 一、本目录内容
@@ -378,6 +395,29 @@ wsl --version
 
 内核版本比较看 `uname -r` 里的 base 号（如 `6.18.33`），**不是后缀**。
 
+### 维护：回收 vhdx 空间
+
+**WSL 3.0 起有内置动词，不用再走 `Optimize-VHD`**（2026-10-17 在 WSL 3.0.1.0 实测）：
+
+```powershell
+wsl -d <Name> -u root -- fstrim -av     # 先在发行版内标记空闲块
+wsl --shutdown                          # 必须停，VHDX 要先脱挂
+wsl --manage <Name> --compact           # 内置压缩
+wsl -l -v                               # 确认仍是 VERSION 2
+wsl -d <Name> -- sh -lc 'whoami; df -h / | tail -n 1'
+```
+
+实测一台 Debian（宿主 4.073 GB，Linux 已用 3.54 GB）：回收 198 MB，**4.75%**，
+压缩后 `whoami` 与 `df` 均正常。注意回收比例取决于**碎片和块大小**，不是「已用 vs 空闲」的差值——
+宿主文件与 `df` 的差额里有一大块是 ext4 元数据和无法 trim 的部分，
+所以「差 0.5 GB 就该收回 0.5 GB」这种预期是错的。
+
+旧版 WSL 没有 `--compact` 时才走 skill [`../../agent/skills/compress-wsl-space/`](../../agent/skills/compress-wsl-space/)
+的 `fstrim` + `Optimize-VHD -Mode Full` 流程。那条 skill 的「不要把 sparse VHD 当默认修复」的结论不变。
+
+> WSL 3.0 的 `--manage` 还多出 `--resize <MemoryString>` 和 `--set-sparse <true|false>`，
+> 前者能改 vhdx 上限而不用重装。后者仍然不建议打开。
+
 Windows 侧把功能更新钉死在某个版本的做法（以及为什么钉了 Windows 也钉不住 WSL），见
 [`../../windows/windows-update/`](../../windows/windows-update/)。
 
@@ -478,6 +518,9 @@ systemctl is-active wsl-binfmt-guard.timer     # 预期 active
 # 12. /mnt/wsl 跨发行版共享（多发行版机器）
 systemctl is-active wsl-mount-guard.timer      # 预期 active
 findmnt -no TARGET "/mnt/wsl/$WSL_DISTRO_NAME" # 预期打印该路径
+#    单发行版机器上这行 fstab 可能被刻意注释掉了，那 findmnt 不打印任何东西是
+#    配置使然而非故障——守护 timer 会每个周期空跑一遍并 exit 0。2026-10-17 在
+#    那台只有 Debian 的笔记本上实测如此。
 # 挂载必须落在共享 tmpfs 里面：下面两个 id 要一致，不一致说明挂成了被遮蔽的孤儿
 awk '$5=="/mnt/wsl"{print "tmpfs id="$1}' /proc/self/mountinfo
 awk -v t="/mnt/wsl/$WSL_DISTRO_NAME" '$5==t{print "bind parent="$2}' /proc/self/mountinfo
@@ -488,6 +531,10 @@ awk -v t="/mnt/wsl/$WSL_DISTRO_NAME" '$5==t{print "bind parent="$2}' /proc/self/
 ---
 
 ## 五、常见问题
+
+**WSL 3.0 下 `/proc/mounts` 里 `/mnt/c` 显示 `9p` 而不是 `drvfs`** —— 2026-10-17 在 WSL 3.0.1.0 实测。`/etc/fstab` 里**照旧写 `drvfs`**，WSL 收下后底层换成了 9p server。所以：验证清单第 10 条照旧有效，大小写仍然不敏感（`/mnt/c/users/Public` 与 `/mnt/c/Users/Public` 都能 stat 到）。**别把 `9p` 写进 fstab** —— 那是实现细节，不是该由你填的类型。
+
+**`systemctl is-system-running` 每次启动都报 `degraded`** —— 2026-10-17 在 Debian 13 / WSL 3.0.1.0 实测：唯一 failed 的 unit 是 `systemd-binfmt.service`，而 `/proc/sys/fs/binfmt_misc/WSLInterop` 存在、`clip.exe` / `reg` 一切正常。这正是步骤 1.3 末尾那个门控 unit 的样子——五个 `binfmt.d` 目录全空 → 直接跳过 → 状态记成 failed。`wsl-binfmt-guard.timer` 在跑就不用管它，**更不要**为了消掉这个 `degraded` 去手工往 `binfmt.d` 里塞文件（步骤 1.3 解释了那样做会让 unit "返回 0 但毫无作用"这条诊断彻底失效）。
 
 **改了 `wsl.conf` 没反应** —— 必须在 Windows 侧 `wsl.exe --shutdown` 后重启 WSL。
 
@@ -505,7 +552,7 @@ awk -v t="/mnt/wsl/$WSL_DISTRO_NAME" '$5==t{print "bind parent="$2}' /proc/self/
 唯一覆盖不到的是**没有这样一个父 shell**的情形（从 Windows 直接 `wsl.exe -e bash script.sh`），那里只能写绝对路径。
 注意验收清单第 2 条历史上写的是 `bash -ic`，带 `-i` 正好把这个缺口盖住了——现在第 3 条补了不带 `-i` 的版本。
 
-**换了台机器后 `code` 命令消失，且毫无报错** —— `~/.shell_common` 的 VS Code 探测块**不要**写死 Windows 账户名，也别假设它等于 `$USER`。本机这两者其实并不相等（只差大小写），以前能用纯属侥幸：`/mnt/c` 是 drvfs，继承 NTFS 的大小写不敏感，所以 `Users/$USER` 照样 stat 到实际那个大小写不同的目录。换台名字真的不同的机器，所有探测全落空，而 `Program Files` 那两个兜底只对系统级安装有效（VS Code 默认是 User Installer，装在 AppData 下），于是 `code` 静默不进 PATH——症状会推迟到 `VISUAL="code --wait"` 被用到时才冒出来。
+**换了台机器后 `code` 命令消失，且毫无报错** —— `~/.shell_common` 的 VS Code 探测块**不要**写死 Windows 账户名，也别假设它等于 `$USER`。本机这两者其实并不相等（只差大小写），以前能用纯属侥幸：`/mnt/c` 继承 NTFS 的大小写不敏感，所以 `Users/$USER` 照样 stat 到实际那个大小写不同的目录。换台名字真的不同的机器，所有探测全落空，而 `Program Files` 那两个兜底只对系统级安装有效（VS Code 默认是 User Installer，装在 AppData 下），于是 `code` 静默不进 PATH——症状会推迟到 `VISUAL="code --wait"` 被用到时才冒出来。
 现在的写法是 `$USER` 优先、再 glob `/mnt/c/Users/*/`、最后问一次 Windows 要 `%USERPROFILE%` 并缓存到 `~/.cache/wsl-userprofile`。glob 外面那圈 `[ -d /mnt/c/Users ]` 是必需的：**zsh 在 `for` 列表里遇到无匹配的 glob 会直接中止整个文件**（`NOMATCH` 默认开），而 bash 只是把字面量原样传下去；这个文件两种 shell 都要 source。
 
 **删了凭据但 `echo $VAR` 还有值** —— 当前会话是启动时继承的，重开终端或 `wsl --shutdown` 后消失。用上面第 9 条的 `env -i` 方式验证文件本身。

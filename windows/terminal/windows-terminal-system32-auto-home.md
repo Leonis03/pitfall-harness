@@ -86,7 +86,7 @@ if ($PWD.Path -eq "$env:windir\System32" -or $PWD.Path -eq "$env:windir\SysWOW64
 function prompt {
     $loc = $($ExecutionContext.SessionState.Path.CurrentLocation)
     $esc = [char]27
-    Write-Host -NoNewline "$esc]9;9;`"$loc`"$esc"
+    Write-Host -NoNewline "$esc]9;9;`"$loc`"$bel"
     "PS $loc$('>' * ($nestedPromptLevel + 1)) "
 }
 ```

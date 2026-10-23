@@ -1,2 +1,29 @@
+# linux-desktop/files/pnpm/config.yaml
+#
+# This is the OPTIONAL answer from linux-desktop/README.md 2.16, not a
+# universal requirement. 2.16 also documents the stricter alternative: keep the
+# supply-chain protection and allow builds per package with
+# `pnpm add -g --allow-build=<exact-package-name>`.
+#
+# Read this file before assuming it is right for the machine you are on.
+#
+#   dangerouslyAllowAllBuilds: true
+#     pnpm 10+ skips dependency lifecycle scripts by default. Packages that
+#     need a build step (better-sqlite3, esbuild, sharp...) then install
+#     "successfully" and fail at first run with a missing .node / missing
+#     binary. This turns the guard off wholesale. Note that pnpm 12 also pops
+#     an INTERACTIVE approve-builds prompt that an AI agent cannot answer --
+#     here that prompt does not appear, which is the actual point of the file.
+#
+#   minimumReleaseAge: 0
+#     pnpm refuses packages published within the last N minutes. Combined with
+#     a China mirror this is the usual cause of "the mirror does not have that
+#     version yet". Setting it to 0 removes the cooling-off window. If you want
+#     to keep some protection, prefer lowering it over removing it:
+#       pnpm config set minimum-release-age 60 -g
+#
+# Neither key touches the registry. The mirror lives in ~/.npmrc
+# (registry=https://registry.npmmirror.com/), which pnpm also reads.
+
 dangerouslyAllowAllBuilds: true
 minimumReleaseAge: 0

@@ -23,6 +23,18 @@
 - **这些地方只用纯 ASCII**：目录名与文件名、系统与工具的配置文件（**含其中的注释**，注释写英文）、
   每个 skill 的 YAML frontmatter（尤其 `description`，它每个会话都加载并参与触发匹配）。
   非 ASCII 跑到上面那几处，故障会**静默且远离原因**——跨 WSL/Windows 边界、打包、shell 与 harness 解析。
+- **行尾统一用 LF，仓库里是，工作区里也是**。
+  `.gitattributes` 把这条钉死（`* text=auto eol=lf`；`.bat`、`.cmd`、`.reg` 只在工作区保持 CRLF），
+  这样就不由任何一台机器的 `core.autocrlf` 替所有人做决定。属性文件只是兜底，不是方案——
+  在 Windows 上编辑的 agent 依然可能在 git 看到文件之前就把 CRLF 写回去：
+  - **用能原样输出你给的字节的工具写文件，内容里显式写 `\n`**。
+    PowerShell 里就是 `[IO.File]::WriteAllText($path, $content)`。
+    **`Set-Content`、`Out-File` 和 `[IO.File]::WriteAllLines` 都走 `Environment.NewLine`，
+    在 Windows 上必产 CRLF**——这是实测的，不是推测。
+  - **按子串替换的工具会把替换内容归一化到文件既有的行尾**。
+    所以逐行改一个 CRLF 文件，它会永远是 CRLF；要改行尾只能整文件重写，不能打补丁。
+  - **检查要数 CR 字节，别用眼睛看**。终端把 CRLF 和 LF 渲染得一模一样，
+    文件在编辑器里看着对，提交进去可能就是错的。
 - **Markdown 文件名一律小写 kebab-case**：`wsl-gui-and-ime.md`，不用大写、下划线或空格。
   取证记录与时点快照在名字末尾加 `-YYYYMMDD`（`etc-diff-analysis-20260330.md`、
   `pnpm-npm-cleanup-20260920.md`），流程型与常青文档不加。

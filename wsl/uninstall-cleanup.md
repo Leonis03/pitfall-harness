@@ -13,6 +13,19 @@ wsl --list --verbose
 wsl --export <distro> <backup-dir>\<distro>.tar     # per distro; --unregister cannot be undone
 ```
 
+**Distros registered with `wsl --import-in-place` need a different backup.** There the
+`ext4.vhdx` you registered *is* the live filesystem, with no intermediate layer, so
+`--unregister` deletes the data itself rather than a copy of it:
+
+```powershell
+Copy-Item <BasePath>\ext4.vhdx <backup-dir>\<distro>-ext4.vhdx
+```
+
+Read `BasePath` from `HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss` rather than
+assuming the default `AppData\Local\Packages` location. Recovering a distro afterwards
+means `wsl --import-in-place <distro> <that file>` -- see
+[`storage/wsl-distro-move-to-d-drive.md`](storage/wsl-distro-move-to-d-drive.md).
+
 ## 1. Remove one distro only
 
 ```powershell
@@ -77,3 +90,31 @@ wsl --install -d Ubuntu
 ```
 
 Then follow [`setup/`](setup/) to rebuild the configuration.
+
+### If the distro disk outlived the reinstall
+
+A Windows reinstall clears the `Lxss` registration but not the vhdx sitting on another
+drive. There is nothing to `--unregister` and nothing to `--manage --move`; register the
+existing file directly:
+
+```powershell
+wsl --import-in-place <distro> <drive>\WSL\<distro>\ext4.vhdx
+```
+
+Normalize the ownership of the parent directory first -- a file left over from the old
+install usually has no explicit per-user ACE, which shows up later as
+`MountDisk/HCS/E_ACCESSDENIED`. Full sequence, with the `icacls` lines and the reason
+`DefaultUid=0` is not a problem:
+[`storage/wsl-distro-move-to-d-drive.md`](storage/wsl-distro-move-to-d-drive.md).
+
+### If `wsl --install` does nothing
+
+On Windows 11 build 26100 the inbox `wsl.exe` is a forwarder: `--install` only prints a
+hint pointing at itself, and no new verbs appear in `--help`. Install the Store build
+through winget instead:
+
+```powershell
+winget install --id 9P9TQF7MRM4R --source msstore --accept-source-agreements
+```
+
+Same trick for step 2 above's `winget uninstall -e --id Microsoft.WSL --silent`.

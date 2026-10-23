@@ -126,6 +126,63 @@ wsl --shutdown
 wsl -d Ubuntu -- whoami
 ```
 
+## 复用已有的 ext4.vhdx（Windows 重装后）
+
+`--manage --move` 和下面那套导出/注销/导入，前提都是**发行版当前已注册**。Windows 重装后
+注册表里的 `Lxss` 键整个没了（`wsl -l -v` 是空的），此时既没有可 move 的对象，也没有可
+unregister 的对象——直接原地注册那块磁盘就够了：
+
+```powershell
+wsl --version                                # 必须是 Store 版 WSL 2.x/3.x，inbox 存根没这个动词
+Get-Item D:\WSL\<distro>\ext4.vhdx           # 先确认文件还在、大小合理（把盘符换成实际的）
+wsl --shutdown
+wsl --import-in-place <Name> D:\WSL\<distro>\ext4.vhdx
+```
+
+2026-10-17 实测（Debian 13，WSL 3.0.1.0）：注册后 `BasePath` 写作 `\\?\D:\WSL\<distro>`，
+`DefaultUid` 写成 `0`——**但默认用户照样生效**，因为 `/etc/wsl.conf` 的 `[user] default=`
+在磁盘里，优先级更高。跟「如果默认用户不对」那一节是同一套逻辑，不用额外处理。
+
+### 导入前先做两件事
+
+**一、把所有权归一化。** 磁盘是重装前留下的，文件上的显式用户 ACE 可能已经没了，只剩继承来的
+`Authenticated Users:(M)`；attach 时 HCS 盖不上 VM 专属 ACE，就会报
+`MountDisk/HCS/E_ACCESSDENIED`（完整排查见 [`forensics/`](forensics/)，修复段是这四行）：
+
+```powershell
+wsl --shutdown
+icacls D:\WSL /setowner <your-windows-user> /T /C
+icacls D:\WSL /grant "<your-windows-user>:(OI)(CI)F" /T /C
+Restart-Service WSLService
+```
+
+健康态的判据是 `icacls <vhdx>` 里有一行 `<your-windows-user>\:(I)(F)`。
+
+**二、复制一份备份。** `--unregister` 会连同 `ext4.vhdx` 一起删掉（见
+[`../setup/README.md`](../setup/README.md) 的「重装的三个层级」和
+[`../uninstall-cleanup.md`](../uninstall-cleanup.md) 第 0 节），而 `--import-in-place`
+注册的就是**你这个文件本体**。重装前的数据在这块盘上是唯一副本，磁盘比备份小得多，
+先 `Copy-Item` 再导入。
+
+### 重装后 WSL 本体也得重装
+
+两个可选特性是随重装清掉的，`wsl.exe` 退回 inbox 存根，此时 `--import-in-place`
+这个动词**根本不存在**，导入必然失败：
+
+```powershell
+Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -All -NoRestart
+Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart
+winget install --id 9P9TQF7MRM4R --source msstore --accept-source-agreements
+# 必须重启。HypervisorPresent 变 True 之前，wsl --status 会说 WSL2 不可用
+```
+
+两个坑：
+
+- inbox 存根的 `wsl --install --no-distribution` 在 26100 上**不工作**——它只是个转发器，
+  只会回一句让你去 `wsl.exe --install`。走 winget 的 msstore 源装 Store 版才有效。
+- 别用 `dism` 之外的手段去确认特性状态。`Get-WindowsOptionalFeature` 会显示
+  `Enabled` 而 `HypervisorPresent` 仍是 `False`，因为虚拟机平台要重启才真正加载。
+
 ## 兼容旧版 WSL 的回退方案
 
 只有在本机没有 `wsl --manage ... --move ...` 时，再使用下面这套。
@@ -153,6 +210,11 @@ wsl --import-in-place Ubuntu D:\WSL\Ubuntu\ext4.vhdx
 - `/mnt/c`、`/mnt/d` 这类挂载的 Windows 文件不会跟着一起“搬迁”。
 - 建议把 WSL 放在本机固定磁盘上，不建议放到容易断开的外置盘。
 - 如果迁移后旧路径还残留文件，不要立刻手动删，先确认新路径稳定使用几天。
+- WSL 3.0 起回收空间用 `wsl --manage <Name> --compact`（先 `fstrim`、再 `wsl --shutdown`），
+  不用再走 `Optimize-VHD`。实测回收比例远小于「宿主文件大小 − `df` 已用」的差值，
+  详见 [`../setup/README.md`](../setup/README.md) 的「维护：回收 vhdx 空间」。
+- `--import-in-place` 注册的就是你指定的那**一个文件**，没有中间层。误 `--unregister`
+  的后果比注册过的发行版更直接：磁盘本身没了。
 
 ## 以后新装时避免再落到 C 盘
 

@@ -9,6 +9,7 @@
 | `settings.json` | `~/.claude/settings.json` | 2026-09-20 | 模型、effort、插件、权限、statusLine 挂载点、agy 守卫钩子 |
 | `claude-global.md` | `~/.claude/CLAUDE.md` | 2026-09-20 | 全局约定（bx 搜索配方、uv/Python 规范、纯 ASCII 面、技能安装规则） |
 | `statusline-command.sh` | `~/.claude/statusline-command.sh` | 2026-09-20 | 状态栏渲染脚本，纯 bash + jq |
+| `files/claude-wrapper.sh` | `~/.local/bin/claude` | 2026-10-22 | 启动器 wrapper：按会话分配跨会话 messaging socket 路径 |
 
 > **仓库里不叫 `CLAUDE.md`，是故意的。** Claude Code 读到某个子目录里的文件时，会把该目录的
 > `CLAUDE.md` 当作项目指令自动加载——原件若用这个名字，agent 一改这个目录就会把全局约定
@@ -20,16 +21,29 @@ cp settings.json statusline-command.sh ~/.claude/
 cp claude-global.md ~/.claude/CLAUDE.md
 ```
 
-这三个文件与部署位**逐字节一致**（不含任何需要脱敏的路径或账户名，所以 `cp` 即可，
+`files/claude-wrapper.sh` 部署到 `~/.local/bin/claude`（不是 `~/.claude/`）：
+
+```bash
+mkdir -p ~/.local/bin
+cp files/claude-wrapper.sh ~/.local/bin/claude
+chmod 755 ~/.local/bin/claude
+```
+
+wrapper 要排在 pnpm 的 shim 前面才生效，见
+[`../skills/android-chroot-debian/references/proxy-and-socket-pitfalls.md`](../skills/android-chroot-debian/references/proxy-and-socket-pitfalls.md)
+第 3 节（socket 路径）与第 4 节（PATH 顺序，以及 `${PATH#...}` 会误删目录的坑）。
+
+这四个文件与部署位**逐字节一致**（不含任何需要脱敏的路径或账户名，所以 `cp` 即可，
 不像 [`../skills/`](../skills/) 需要渲染占位符）。核对：
 
 ```bash
 cmp -s settings.json         ~/.claude/settings.json         && echo "ok   settings.json"         || echo "DIFF settings.json"
 cmp -s claude-global.md      ~/.claude/CLAUDE.md             && echo "ok   CLAUDE.md"             || echo "DIFF CLAUDE.md"
 cmp -s statusline-command.sh ~/.claude/statusline-command.sh && echo "ok   statusline-command.sh" || echo "DIFF statusline-command.sh"
+cmp -s files/claude-wrapper.sh ~/.local/bin/claude           && echo "ok   claude-wrapper.sh"     || echo "DIFF claude-wrapper.sh"
 ```
 
-三个文件均为**纯 ASCII**，且不含任何凭据。这不只是这三个文件的要求——`claude-global.md` 里
+四个文件均为**纯 ASCII**，且不含任何凭据。这不只是这四个文件的要求——`claude-global.md` 里
 「Keep These Surfaces Pure ASCII」一节把它定成了约定：目录名、文件名、系统与工具的配置文件
 （含注释）、以及每个 skill 的 frontmatter（尤其 `description`）都只用 ASCII，正文文档才用中文。
 
