@@ -87,6 +87,7 @@ mkdir -p "$HOME/.local/bin" "$ROOT/root"
 if [ -f "$SCRIPT_DIR/debian-chroot-launcher.sh" ]; then
     cp "$SCRIPT_DIR/debian-chroot-launcher.sh" "$LAUNCHER_DEST"
     chmod 755 "$LAUNCHER_DEST"
+    cp -p "$LAUNCHER_DEST" "$HOME/.local/bin/Debian"
 fi
 
 if [ -f "$SCRIPT_DIR/setup-debian-env.sh" ]; then

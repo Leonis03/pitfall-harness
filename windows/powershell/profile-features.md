@@ -12,7 +12,7 @@
 | 编辑模式 | Emacs |
 | 历史搜索 | `↑` `↓` |
 | 历史保存不执行 | `Alt+w` |
-| Token 级单词移动 | `Alt+b/f/d/Backspace`、`Alt+B/F` |
+| Token 级单词移动 | `Alt+b/f/d/Backspace`、`Alt+B/F`、`Ctrl+←` |
 | 智能括号 / 引号 | `"` `'` `(` `[` `{` `)` `]` `}` `Backspace` |
 | 预测建议接受 | `→`（整条）、`Ctrl+→`（下一词） |
 | System32 自动转 ~ | 启动时检测并切回 `~` |
@@ -93,6 +93,7 @@ Set-PSReadLineKeyHandler -Key Alt+b         -Function ShellBackwardWord
 Set-PSReadLineKeyHandler -Key Alt+f         -Function ShellForwardWord
 Set-PSReadLineKeyHandler -Key Alt+B         -Function SelectShellBackwardWord
 Set-PSReadLineKeyHandler -Key Alt+F         -Function SelectShellForwardWord
+Set-PSReadLineKeyHandler -Key Ctrl+LeftArrow -Function ShellBackwardWord
 ```
 
 按 PowerShell **解析器 token** 边界移动/删除/选择，而非按字符。
@@ -100,13 +101,14 @@ Set-PSReadLineKeyHandler -Key Alt+F         -Function SelectShellForwardWord
 | 按键 | 行为 |
 |---|---|
 | `Alt+b` / `Alt+f` | 向左 / 向右跳一个 token |
+| `Ctrl+←` | 向左跳一个 token（同 `Alt+b`；`Ctrl+→` 在 6 节，行内也是跳词） |
 | `Alt+d` | 删除右侧一个 token（进 kill-ring） |
 | `Alt+Backspace` | 删除左侧一个 token |
 | `Alt+B` / `Alt+F` | 向左 / 向右选中一个 token |
 
 **对比示例**：`git commit -m "fix: bug" --amend`，光标在末尾按一次：
-- `Ctrl+←`（字符级）只跳到 `--amend` 的 `amend` 之前
-- `Alt+b`（token 级）一次跳到 `--amend` 整个 flag 之前；下一次直接跳过整个带引号字符串 `"fix: bug"`
+- `←` 或 `Ctrl+b`（字符级）只退一格，落在 `d` 后面
+- `Alt+b` 或 `Ctrl+←`（token 级）一次跳到 `--amend` 整个 flag 之前；下一次直接跳过整个带引号字符串 `"fix: bug"`
 
 ---
 

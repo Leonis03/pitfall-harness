@@ -1,0 +1,15 @@
+# linux-desktop/fedora/files/npmrc
+#
+# Deploy to: ~/.npmrc
+#
+# The registry line only. The two pnpm supply-chain keys
+# (dangerouslyAllowAllBuilds, minimumReleaseAge) are deliberately NOT here:
+# pnpm 12 reads them from ~/.config/pnpm/config.yaml only, and npm 11 prints
+# "Unknown user config" for each unknown key on every single command.
+# See linux-desktop/fedora/README.md section 4.2.
+#
+# Measured throughput on the Fedora 44 machine (5.8 MB tarball):
+#   registry.npmjs.org   via proxy   271 kB/s
+#   registry.npmmirror.com via proxy  747 kB/s
+#   registry.npmmirror.com direct     2.9 MB/s
+registry=https://registry.npmmirror.com/

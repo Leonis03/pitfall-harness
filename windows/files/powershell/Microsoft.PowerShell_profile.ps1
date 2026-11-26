@@ -80,6 +80,11 @@ Set-PSReadLineKeyHandler -Key Alt+b         -Function ShellBackwardWord
 Set-PSReadLineKeyHandler -Key Alt+f         -Function ShellForwardWord
 Set-PSReadLineKeyHandler -Key Alt+B         -Function SelectShellBackwardWord
 Set-PSReadLineKeyHandler -Key Alt+F         -Function SelectShellForwardWord
+
+# Ctrl+LeftArrow: same token movement as Alt+b, so the Ctrl+arrow pair works in
+# both directions. Ctrl+RightArrow is bound in section 6.2 and also accepts the
+# next suggestion word at end of line; there is no backward equivalent of that.
+Set-PSReadLineKeyHandler -Key Ctrl+LeftArrow -Function ShellBackwardWord
 Set-PSReadLineKeyHandler -Key Alt+d         -Function ShellKillWord
 Set-PSReadLineKeyHandler -Key Alt+Backspace -Function ShellBackwardKillWord
 

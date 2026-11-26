@@ -7,7 +7,7 @@
 | 仓库中的文件 | 部署到 | 同步于 | 说明 |
 | :--- | :--- | :--- | :--- |
 | `settings.json` | `~/.claude/settings.json` | 2026-09-20 | 模型、effort、插件、权限、statusLine 挂载点、agy 守卫钩子 |
-| `claude-global.md` | `~/.claude/CLAUDE.md` | 2026-09-20 | 全局约定（bx 搜索配方、uv/Python 规范、纯 ASCII 面、技能安装规则） |
+| `claude-global.md` | `~/.claude/CLAUDE.md` | 2026-11-18 | 全局约定（bx 搜索配方、uv/Python 规范、纯 ASCII 面、技能安装规则） |
 | `statusline-command.sh` | `~/.claude/statusline-command.sh` | 2026-09-20 | 状态栏渲染脚本，纯 bash + jq |
 | `files/claude-wrapper.sh` | `~/.local/bin/claude` | 2026-10-22 | 启动器 wrapper：按会话分配跨会话 messaging socket 路径 |
 
@@ -53,15 +53,22 @@ cmp -s files/claude-wrapper.sh ~/.local/bin/claude           && echo "ok   claud
 才是按需加载**。把 2.2k tokens 的 skill 设成搜索前置，等于每次想搜个东西都先交一笔固定税，
 而九成场景只需要一行 `bx web ... | jq`。
 
-现在改成 5 条实测过的配方内联（约 400 tokens 常驻），skill 只接边缘情况。盈亏平衡点大约是
-「每 5 个会话有 1 个要搜索」，超过就赚。
+现在内联一个通用 jq 过滤器 `J` 加两条命令（列表搜索、`context`），约 1.3 KB / 350 tokens 常驻，
+skill 只接边缘情况（`answers`、`places`、`--extra`/`--offset`、非零退出码）。读一次 skill 约 2.2k
+tokens，所以只要每 6 个会话里有 1 次本来要读 skill 的搜索，内联就划算。
 
-内联的取舍标准是**「猜错了会不会静默失败」**，只有三条硬约束必须常驻：
+内联的取舍标准是**「猜错了会不会静默失败」**，三条硬约束必须常驻：
 
 - 不加 jq 过滤 = 单次 21k tokens（加了是 180–900），**120 倍**；
 - `web` 的结果在 `.web.results[]`，`news`/`images`/`videos`/`places` 在 `.results[]`——
-  路径写错返回 **0 行 + exit 0，不报错**；
-- `context --max-tokens` 必须 ≥ 1024，否则 422。
+  路径写错返回 **0 行 + exit 0，不报错**。`J` 用 `(.web.results // .results // [])`
+  一次兼容 `web`/`news`/`images`（2026-11-18 实测），空结果打印 `NO RESULTS`，
+  这条坑由过滤器本身消掉，不再靠记忆；
+- `context --max-tokens` 必须 ≥ 1024，否则 422。1024 约产出 3.6 KB（≈1k tokens）。
+
+`J` 只在同一次 Bash 调用里有效（harness 不保留 shell 变量），所以配方注释要求把 `J=` 和命令
+写在一起。没加 `--extra text_decorations=false`：web 描述会带 `<strong>`，每条多几个 token，
+换来配方更短。
 
 反过来，`bx answers` 故意**不**内联：它走独立套餐和独立 key，必须带
 `--config ~/.config/brave-search/config-answers.json --no-stream`，猜着用会拿到 exit 3 鉴权错，

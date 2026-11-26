@@ -110,6 +110,10 @@ source $ZSH/oh-my-zsh.sh
 [ -f "$HOME/.shell_common" ] && source "$HOME/.shell_common"
 
 
-# Override prompt: show full path with ~ substitution instead of basename only
-PROMPT='%(?:%{$fg_bold[green]%}%1{➜%} :%{$fg_bold[red]%}%1{➜%} ) %{$fg[cyan]%}%~%{$reset_color%} $(git_prompt_info)'
+# Override prompt: show full path with ~ substitution instead of basename only.
+# The arrow is U+279C, spliced in as its UTF-8 bytes so this file stays ASCII
+# (AGENTS.md); the resulting PROMPT string is byte-identical to a literal arrow.
+_zshrc_arrow=$'\342\236\234'
+PROMPT='%(?:%{$fg_bold[green]%}%1{'"$_zshrc_arrow"'%} :%{$fg_bold[red]%}%1{'"$_zshrc_arrow"'%} ) %{$fg[cyan]%}%~%{$reset_color%} $(git_prompt_info)'
+unset _zshrc_arrow
 

@@ -145,14 +145,132 @@ fi
 
 ## 三、GitHub CLI (gh) 登录与 Git 凭证助手集成
 
-### 1. 安装与登录
+### 1. 版本来源：发行版仓 vs GitHub 官方源
+
+`gh` 的版本号跟着**上游发布**走，但发行版仓里的包是**打包时就冻结**的，之后不再跟进。
+Debian / Ubuntu 的 `gh` 尤其旧，而 Go 写的工具**安全修复常常也不 backport**。
+
+2026-10-25 实测：
+
+| 来源 | 命令 | 装出来的版本 | 对应上游发布日 | 落后最新（2.103.2） |
+| :--- | :--- | :--- | :--- | :--- |
+| Debian 13 (trixie) apt | `sudo apt install gh` | **2.46.0-3** | 2024-03-20 | **80 个版本 / 19 个月** |
+| Ubuntu 24.04 (noble) apt | `sudo apt install gh` | **2.45.0-1ubuntu0.3** | 2024-03-04 | 81 个版本 |
+| Fedora 44 dnf | `sudo dnf install -y gh` | **2.97.0-2.fc44** | 2026-07-31 | 9 个版本 |
+| GitHub 官方 apt 源 | 见 2.1 | **2.103.2** | 2026-10-23 | 0 |
+
+> **`gh --version` 里括号中的日期是打包日，不是上游发布日。**
+> Debian 包打印 `(2025-01-13 Debian 2.46.0-3)`，而上游 v2.46.0 实际发布于 **2024-03-20**。
+> 差一年多，只看这一行会以为它还挺新。
+
+**结论：Fedora 用 dnf 自带的就够，不必换源；Debian / Ubuntu 才需要。** 理由见 2.2。
+
+差距具体落在哪些功能上（引入版本取自上游 release notes）：
+
+| 能力 | 引入版本 | apt 2.46.0 | dnf 2.97.0 | 官方源 2.103.2 |
+| :--- | :--- | :--- | :--- | :--- |
+| `gh attestation`（产物签名校验） | 2.49.0 | 无 | 有 | 有 |
+| `gh agent-task`（给 Copilot coding agent 派任务） | 2.80.0 | 无 | 有 | 有 |
+| `gh pr create --reviewer @copilot` | 2.87.0 | 无 | 有 | 有 |
+| `gh skill`（装 agent skill 到 Claude Code / Codex 等） | 2.90.0 | 无 | 有 | 有 |
+| 转义序列注入修复（`gh run view --log`） | 2.92.0 | **无** | 有 | 有 |
+| 转义序列注入修复（`gh api` / `gh pr diff` / `gh gist view` 等） | 2.97.0 | **无** | 有 | 有 |
+| `gh pr checkout --worktree` | 2.98.0 | 无 | **无** | 有 |
+| `gh pr create --attach`（截图进 PR） | 2.99.0 | 无 | **无** | 有 |
+
+两处转义序列修复对「**让 agent 读 PR / CI 输出**」的场景是实打实的风险：
+外部仓库的 PR 内容会被 `gh pr diff`、`gh api` 原样打印出来，旧版本不中和其中的 ANSI 转义。
+
+### 2. 安装
+
+#### 2.1 Debian / Ubuntu（apt）：换到 GitHub 官方源
+
+官方源是 GitHub 自己签名的 apt 仓，涉及三个文件，全部可回退。
+
+```bash
+# 1. 签名 key
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  -o /etc/apt/keyrings/githubcli-archive-keyring.gpg
+sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+
+# 2. 源
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+  | sudo tee /etc/apt/sources.list.d/github-cli.list
+
+# 3. 装
+sudo apt update
+sudo apt install -y gh
+```
+
+装完确认候选来自官方源：
+
+```bash
+apt-cache policy gh
+```
+
+预期两张版本表：官方源 `2.103.2`（优先级 500）在上，发行版仓 `2.46.0-3`（优先级 100）在下。
+**候选是官方源那个**——之后 `sudo apt upgrade` 会自动跟上，不必再记专门的更新命令。
+
+**代理环境下这一步会卡住。** apt **不读** `http_proxy` / `https_proxy` 环境变量，
+而 `cli.github.com` 直连不稳（2026-10-25 实测：4 次里 1 次连接重置或超时）。
+解法是给 apt 单独配代理，并且**只写这一台主机**，别拖累走直连的镜像源：
+
+```bash
+echo 'Acquire::http::Proxy::cli.github.com "http://127.0.0.1:<proxy-port>";' \
+  | sudo tee /etc/apt/apt.conf.d/99-github-cli-proxy
+```
+
+主机名写在配置项名里，就只对 `cli.github.com` 生效。
+`<proxy-port>` 换成实际端口（`shell/files/shell_common` 探测的那个）。
+
+#### 2.2 Fedora（dnf）：不用换源
+
+```bash
+sudo dnf install -y gh        # 2.97.0
+sudo dnf upgrade gh           # 日常更新走这条
+```
+
+两条理由：
+
+* dnf 源**跟随上游**（Fedora 44 的是 2026-07-31 的 2.97.0），落下的 9 个版本里
+  只有 `gh pr checkout --worktree`（2.98.0）和 `gh pr create --attach`（2.99.0）两个功能；
+* GitHub **只提供 apt 仓库**（`cli.github.com/packages` 只有 deb 布局，RPM 仓库路径 404）。
+  每次发布虽然带一个 `.rpm` 文件，但那是静态文件，装上不会自动更新——为了两个功能不值得。
+
+真要最新版的话，从 release 页面取 `.rpm` 手动装：
+
+```bash
+# https://github.com/cli/cli/releases/latest 上取 gh_<version>_linux_amd64.rpm
+sudo dnf install -y ./gh_<version>_linux_amd64.rpm
+```
+
+#### 2.3 更新与回退
+
+```bash
+# 只升级 gh（不动别的包）
+sudo apt update && sudo apt install -y --only-upgrade gh
+
+# 只刷新官方源这一个源的索引，不动其他源
+sudo apt-get update \
+  -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/github-cli.list \
+  -o Dir::Etc::sourceparts=/dev/null \
+  -o APT::Get::List-Cleanup=0
+
+# 回退到发行版仓的版本
+sudo rm /etc/apt/sources.list.d/github-cli.list
+sudo apt update
+sudo apt install -y gh/<suite>    # suite 随发行版走：Debian 是 trixie，Ubuntu 是 noble
+```
+
+### 3. 登录
+
+#### 3.1 浏览器 OAuth（默认）
+
 使用 `gh` 进行命令行授权，免去手动生成与维护 GitHub Personal Access Token (PAT) 的繁琐步骤。
 
 ```bash
-# 1. 确保已安装 gh
-sudo apt update && sudo apt install -y gh
-
-# 2. 发起登录授权
+# 发起登录授权
 gh auth login
 ```
 **交互选项说明**：
@@ -162,7 +280,96 @@ gh auth login
 * *How would you like to authenticate GitHub CLI?* → **`Login with a web browser`**
 * 按回车复制一次性验证码，浏览器自动打开，粘贴验证码完成授权。
 
-### 2. 配置 Git Credential Helper
+这条路拿到的 OAuth token，scope 是**固定**的（实测 `gist` `read:org` `repo` `workflow`），
+等价于一个 classic PAT 勾了这四项，覆盖你所有能访问的仓库。
+
+#### 3.2 用 token 登录
+
+```bash
+gh auth login --with-token < <token-file>
+```
+
+`gh auth login --help` 的原话：最小 scope 是 `repo` + `read:org` + `gist`；
+并提醒 **fine-grained PAT 走 `--with-token` 可能「行为令人困惑」**，那种场景改用环境变量
+`GH_TOKEN`（或 `GITHUB_TOKEN`）更稳：
+
+```bash
+export GH_TOKEN="$(cat <token-file>)"
+gh api user
+```
+
+两种 token 的区别：
+
+| | classic PAT | fine-grained PAT |
+| :--- | :--- | :--- |
+| 前缀 | `ghp_` | `github_pat_` |
+| 粒度 | scope 列表，账号级 | **按仓库选**，逐项选权限 |
+| 有效期 | 可设成不过期 | **有强制过期时间**，到期静默失效 |
+| 改权限 | 得重新生成 token | 界面上直接改，token 串不变 |
+
+#### 3.3 fine-grained PAT 的权限怎么对应 gh 的命令
+
+fine-grained 界面里那列勾选框**不是** gh 的 scope 列表，一一对应关系是：
+
+| 界面里的权限 | 等级 | gh 用在哪 |
+| :--- | :--- | :--- |
+| Metadata | Read-only（灰，强制） | 前提，所有仓库操作都要 |
+| Contents | Read and write | `git push`、`gh pr create` 读 diff、`gh api` 读写文件 |
+| Pull requests | Read and write | `gh pr create / merge / checkout / diff` |
+| Issues | Read and write | `gh issue` |
+| Actions | Read and write | `gh run`、`gh workflow` |
+| Workflows | Write-only | 推 `.github/workflows/*.yml`（对应 OAuth 的 `workflow` scope） |
+| Administration | Read and write | `gh repo edit --visibility`、`gh repo delete`、改默认分支 |
+| Repository creation | Read and write | `gh repo create` |
+
+外加 organization 侧 **Members: Read-only**（对应 `read:org`）。
+
+**`repo` scope 是 aggregate 的**：它把上面几乎每一项都覆盖了，所以 classic 那边勾一个 `repo`
+就够了；fine-grained 这边必须**逐项勾**，漏一项就少一块能力。
+
+#### 3.4 验证 token 到底能干什么
+
+**别只看 `gh auth status`** —— 对 fine-grained PAT 它不打印 scope 列表（这种 token 没有 scope
+概念），只显示 token 前缀。要验权限就直接打 API：
+
+```bash
+gh api repos/<owner>/<repo>/pulls                # Pull requests 权限
+gh api repos/<owner>/<repo>/actions/workflows   # Actions 权限
+gh api repos/<owner>/<repo>/actions/secrets     # Secrets 权限（是独立的一项）
+```
+
+403 的消息是固定的：`Resource not accessible by personal access token`。
+**它说的是权限不够，不是 token 无效** —— 别去重登，重登一百遍也是这个结果。
+`gh` 会把它原样打出来，例如 `failed to get secrets: HTTP 403: ...`。
+
+**验写权限而不产生副作用**：用一个必然被参数校验拦下的请求。权限不够会先吃 403，
+权限够了才会走到校验那一步：
+
+```bash
+gh api -X POST user/repos -f name="" -f private=true
+# 权限够 -> 422 "New repository name must not be blank"（没建出仓）
+# 权限缺 -> 403 "Resource not accessible by personal access token"
+```
+
+2026-10-25 实测踩到的两件事：
+
+* 这个 token 一开始漏了 **Actions**，`gh api repos/.../actions/workflows` 报 403，
+  而 `gh run list` 因为这个仓没有 workflow 而什么也不打印——**看着像「这仓没 CI」，
+  其实是权限不足**；
+* **Secrets 是另一项独立权限**。Actions 给足了 `gh run` 能用，`gh secret` 照样 403。
+
+#### 3.5 换 token 后不用重跑 setup-git
+
+credential helper 指向的是 `gh auth git-credential`（不是 token 本身）：
+
+```bash
+git config --global --get credential.https://github.com.helper
+# 预期输出: !/usr/bin/gh auth git-credential
+```
+
+所以换 token 后 helper 配置不用动，`git push` 会自动用当前登录的那个 token。
+
+### 4. 配置 Git Credential Helper
 让本地 `git clone` / `git push` 自动借用 `gh` 的 OAuth 令牌进行免密认证：
 
 ```bash

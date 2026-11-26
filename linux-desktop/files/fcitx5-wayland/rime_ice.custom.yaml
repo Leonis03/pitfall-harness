@@ -1,0 +1,53 @@
+# linux-desktop/files/fcitx5-wayland/rime_ice.custom.yaml
+#
+# Rime patch for the rime_ice schema (the "rime-ice" / misty-pinyin scheme) of a
+# Fcitx5 Rime installation.
+# Deploy to:
+#   ~/.local/share/fcitx5/rime/rime_ice.custom.yaml
+#
+# The file name is the SCHEMA ID plus `.custom.yaml`. Naming it
+# `rime_ice.schema.custom.yaml` is silently ignored: Rime records the files it
+# actually consumed in the built schema's `__build_info.timestamps`, and a
+# timestamp of 0 means the file was never read.
+#
+#   grep -A 8 '__build_info' ~/.local/share/fcitx5/rime/build/rime_ice.schema.yaml
+#
+# Why this file exists at all: `rime_ice.schema.yaml` has no `extends:` line, so
+# it does not inherit `default.yaml`. A patch to `ascii_composer` in
+# `default.custom.yaml` therefore never reaches the running schema, even though
+# patches to `menu`, `selector` and `key_binder` do (Rime merges `default.yaml`
+# in as a base for those standard sections only).
+#
+#   ascii_composer/switch_key
+#     What the Shift / Caps Lock keys do while composing.
+#
+#     commit_code
+#       Commit the raw code, e.g. "ni" instead of the first candidate.
+#       This is what makes a single Shift switch to English without losing
+#       what was typed.
+#     commit_text
+#       Commit the selected candidate.
+#     clear
+#       Discard the composition.
+#     noop
+#       Ignore the key.
+#
+# The shipped rime-ice `default.yaml` already sets Shift_L to commit_code; this
+# file states it explicitly so the behaviour does not depend on which
+# `default.yaml` happens to be installed.
+#
+# After changing this file, recompile and verify the BUILT schema:
+#
+#   rime_deployer --build ~/.local/share/fcitx5/rime /usr/share/rime-data \
+#                 ~/.local/share/fcitx5/rime/build
+#   grep -A 6 'switch_key' ~/.local/share/fcitx5/rime/build/rime_ice.schema.yaml
+#
+# See linux-desktop/wayland-fcitx5-rime.md for the full write-up.
+
+patch:
+  "ascii_composer/switch_key":
+    Caps_Lock: clear
+    Shift_L: commit_code
+    Shift_R: noop
+    Control_L: noop
+    Control_R: noop

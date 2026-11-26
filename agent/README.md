@@ -4,7 +4,7 @@
 | :--- | :--- | :--- |
 | [`claude-code/`](claude-code/) | `settings.json`、全局约定原件 `claude-global.md`、状态栏脚本 | `~/.claude/`（`cp`） |
 | [`antigravity/`](antigravity/) | 全局约定原件 `agents-brave-uv.md`，`agy` CLI 用法与读图记录 | `~/.gemini/config/AGENTS.md`（`cp`） |
-| [`minimax-code/`](minimax-code/) | 全局约定原件 `agents-windows.md`：Windows 侧约定，含实测的环境事实、幽灵命令表、编码三层与「先读再跑」路由 | `~/.minimax/AGENTS.md`（`cp`） |
+| [`minimax-code/`](minimax-code/) | 全局约定原件 `agents-windows.md`：Windows 侧约定，含实测的环境事实、幽灵命令表、编码三层与「先读再跑」路由；`jsonl-repair.md`——会话 JSONL 历史的存储模型与校验规则，以及历史链损坏（`unsafe-artifact`）时的排查与修复手册 | `~/.minimax/AGENTS.md`（`cp`） |
 | [`windows-agent/`](windows-agent/) | `agents-additional.md`——Windows 端 AGENTS.md 应该多写什么、每条的实测依据与取舍理由（`minimax-code/` 那份的设计说明）；`ghost-commands.md`——幽灵命令的排查与清除手册（为什么 0 字节不能判真假、哪些别名不能关、为什么硬链接优于 `.cmd` shim） | — |
 | [`brave-search/`](brave-search/) | `bx` CLI 与 Brave Search MCP 的接入说明 | — |
 | [`skills/`](skills/) | 全部 skill，两边共用 | `~/.claude/skills/`、`~/.gemini/config/skills/`、`~/.agents/skills/`（**只能**用 `tools/sync-skills.sh`，不能 `cp`） |

@@ -43,7 +43,7 @@
 - **`AGENTS.md` / `CLAUDE.md` 只在根目录出现**。harness 会把子目录里这两个名字的文件当作指令自动加载，
   所以要部署成这两个名字的**原件**在仓库里另起名字：`agent/claude-code/claude-global.md` →
   `~/.claude/CLAUDE.md`，`agent/antigravity/agents-brave-uv.md` → `~/.gemini/config/AGENTS.md`。
-- **除 `tmp/` 外，每个顶层目录有一个 `README.md` 做索引**；目录里有 `files/` 的，`files/` 下是可直接部署的原件，
+- **除 `tmp/` 与 `.github/` 外，每个顶层目录有一个 `README.md` 做索引**；目录里有 `files/` 的，`files/` 下是可直接部署的原件，
   其余是文档。原件若同时用于多个平台（如 bash / zsh 配置），放在平台无关的目录（[`shell/`](shell/)），
   不放在某个平台目录下。
 - **Markdown 文件分为给人读的和给 Agent 读的（英文优先，中文直译）**：
@@ -76,7 +76,10 @@
   链接到了公开仓库里会失效。凭据照样不能放进去。要发布某篇草稿，就把它移到该去的目录、
   按 [`redaction.zh.md`](redaction.zh.md) 脱敏、再跑门禁。`drafts/README.md` 是索引，也是待办清单。
 - **发布前跑 `bash tools/privacy-gate.sh`**。它只覆盖已知形态，跑通不等于安全——`wsl/storage/forensics/` 是原始取证输出，必须人工读。
-  账户名**不写在脚本里**（写进去，这个脚本自己就成了泄露源），运行时从 `tools/.privacy-names`（已 gitignore）读取。
+  账户名**不写在脚本里**（写进去，这个脚本自己就成了泄露源），运行时从 `tools/.privacy-names`（已 gitignore）读取，
+  同时读 `tools/privacy-names.private`：它在本仓库中被跟踪，但和 `drafts/` 一样只在私有仓库里——
+  `publish.sh` 把它从导出里删掉、删不掉就拒绝继续，门禁也不扫它。希望每个 clone 和 CI 都查的名字放这里；
+  连私有仓库的历史里都不该出现的名字，仍放在 gitignore 的那个文件里。
 - **发布到公开仓库用 `bash tools/publish.sh`，不要手工 `cp -r`**。本仓库是**私有主仓 + 两个公开快照**：
   [`pitfall-harness`](https://github.com/Leonis03/pitfall-harness) 是整棵树，
   [`pitfall-harness-skills`](https://github.com/Leonis03/pitfall-harness-skills) 只有 skill

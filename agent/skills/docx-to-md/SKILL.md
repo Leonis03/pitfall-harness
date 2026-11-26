@@ -174,7 +174,12 @@ Word frequently pastes application screenshots or vector shapes as Windows Enhan
 
 ### 4.10 Run-Level Fragmented Bold Leakage in Headings (标题碎片化粗体剥除)
 When authors compose headings in Word, individual words or phrases may be partitioned into separate bold runs (`<w:rPr><w:b/></w:rPr>`). Direct run parsing produces fragmented Markdown headings like `# **安装** **SQL Server2016** **企业版** **教程**`.
-- **Defensive Rule**: When promoting blocks to `#`, `##`, `###`, or `####` headings, automatically strip embedded `**` wrappers to produce clean heading text.
+- **Defensive Rule**: Strip embedded `**` wrappers *before* heading detection, not only when emitting the heading. Matching a section number against the raw `**一、实验目的**` never satisfies `^[一-十]+、`, so those sections stay bold paragraphs while the same document's numbering-derived `四、` sections are promoted to `##` -- the outline becomes inconsistent. Use one bold-stripped value for both the guards and the output:
+  ```python
+  guard_txt = clean_txt.replace('**', '').strip()
+  if re.match(r'^[一二三四五六七八九十]+、', guard_txt) and is_heading_candidate:
+      raw_blocks.append(("h2", f"## {guard_txt}\n\n"))
+  ```
 
 ### 4.11 Inline Icon vs. Standalone Image Distinction (行内小图标与独立配图分流)
 Word allows inserting small inline icons (such as button captures or executable file icons like `SSMS-Setup-CHS.exe`) within a sentence run. Treating every image as a standalone block `img_group` rips the inline icon out of sentence context and pushes it to the beginning of the paragraph. Conversely, treating all images as inline text glues consecutive screenshots together horizontally without individual captions.
@@ -188,10 +193,17 @@ Word documents (particularly those imported from HTML, Web, or Chinese typesetti
 
 ### 4.13 Continuous Bold Runs Merging (连续粗体 Run 粘连合并防线)
 When a bold sentence in Word is partitioned across multiple internal runs (`<w:r>`), wrapping each run independently generates fragmented bold tokens like `**在实验一中建立好的** **study** **数据库中...**`.
-- **Defensive Rule**: Merge adjacent bold wrappers using safe regex lambda replacements before final rendering:
+- **Defensive Rule**: Merge adjacent bold wrappers before final rendering. The whitespace between wrappers is a separator injected by the run parser, not source text, so always joining with a literal space splits Chinese words (`实验 内容与 步骤`). Keep a joining space only when two ASCII words would otherwise be glued together (`SQL` + `Server`); CJK boundaries need none, and the §4.14 pangu pass re-inserts the CJK-Latin space where typography requires it:
   ```python
+  def join_bold(m):
+      left, right = m.group(1).strip(), m.group(2).strip()
+      needs_space = bool(left and right
+                         and left[-1].isascii() and left[-1].isalnum()
+                         and right[0].isascii() and right[0].isalnum())
+      return f"**{left}{' ' if needs_space else ''}{right}**"
+
   while re.search(r'\*\*(.*?)\*\*\s*\*\*(.*?)\*\*', text):
-      text = re.sub(r'\*\*(.*?)\*\*\s*\*\*(.*?)\*\*', lambda m: f"**{m.group(1).strip()} {m.group(2).strip()}**", text)
+      text = re.sub(r'\*\*(.*?)\*\*\s*\*\*(.*?)\*\*', join_bold, text)
   while re.search(r'\*\*(.*?)\*\*\*\*(.*?)\*\*', text):
       text = re.sub(r'\*\*(.*?)\*\*\*\*(.*?)\*\*', lambda m: f"**{m.group(1)}{m.group(2)}**", text)
   ```

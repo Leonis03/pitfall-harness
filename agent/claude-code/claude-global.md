@@ -2,38 +2,26 @@
 
 ## Web Search
 
-Two complementary tools: the built-in `WebSearch` fetches and reads page bodies; the Brave
-Search CLI `bx` does what `WebSearch` cannot -- publication dates, freshness windows, non-US
-or non-English results, site scoping. Usual flow: scan cheaply with `bx`, then go deep with
-`WebSearch` / `WebFetch` on the 2-3 URLs worth reading.
-
-`bx` writes JSON to stdout. Two rules make an unassisted call safe: **always project through
-jq** (raw output is ~120x the tokens), and **mind the result path per subcommand** -- `web`
-puts rows under `.web.results[]`, everything else under `.results[]`, and a wrong path
-returns 0 rows at exit 0 with no error. These five cover almost everything:
+`bx` (Brave Search CLI) complements the built-in `WebSearch`: it adds publication dates,
+freshness windows, non-US/non-English results and site scoping, at ~200 tokens/query. Scan
+with `bx`, then `WebFetch` the 2-3 URLs worth reading. Raw output is ~120x larger -- never run
+`bx` without the jq filter below; it works for `web`/`news`/`images`/`videos` alike.
 
 ```bash
-# triage -- URLs only, ~180 tokens
-bx web "axum middleware ordering" --include-site docs.rs --count 10 | jq -r '.web.results[].url'
+# keep J= in the same Bash call: shell variables do not persist between calls
+J='(.web.results // .results // []) | if length == 0 then "NO RESULTS" else .[] | "\(.title)\n  \(.url)  \((.page_age // "")[:10])\n  \((.description // "")[:160])\n" end'
 
-# normal search -- title, url, snippet
-bx web "query" --count 5 | jq -r '.web.results[] | "\(.title)\n  \(.url)\n  \(.description)\n"'
+# web or news; optional: --freshness pd|pw|pm|py|YYYY-MM-DDtoYYYY-MM-DD,
+# --country CN --search-lang zh-hans, ONE of --include-site X / --exclude-site X / --goggles (else exit 2)
+bx news "openssl vulnerability" --freshness pw --country US --count 8 | jq -r "$J"
 
-# news with publication dates; --freshness pd|pw|pm|py or YYYY-MM-DDtoYYYY-MM-DD
-bx news "openssl vulnerability" --freshness pw --count 5 | jq -r '.results[] | "\(.title)\n  \(.url)  [\(.age)]"'
-
-# non-US / non-English (--country, --search-lang; also valid on news/context)
-bx web "PaddleOCR" --country CN --search-lang zh-hans --count 5 | jq -r '.web.results[] | "\(.title)  \(.url)"'
-
-# RAG grounding: search + scrape + extract in one call; --max-tokens must be >= 1024
-bx "Python TypeError cannot unpack non-iterable NoneType" --max-tokens 2048 \
+# search + scrape + extract in one call (~1k tokens); --max-tokens must be >= 1024
+bx "Python TypeError cannot unpack non-iterable NoneType" --max-tokens 1024 \
   | jq -r '.grounding.generic[] | "[\(.title)] \(.url)\n\(.snippets | join("\n"))\n"'
 ```
 
-Read the `bx` skill for anything past that: `answers` (needs its own `--config`),
-`images`/`videos`/`places`, `--goggles`/`--exclude-site`/`--extra`/`--offset`, config or
-proxy trouble, or any non-zero exit code. Do not load the `mcp__brave-search__*` MCP tools;
-the CLI supersedes them.
+Read the `bx` skill only for `answers`/`places`, `--extra`/`--offset`, or a non-zero exit.
+Do not load the `mcp__brave-search__*` MCP tools.
 
 **Search query language:** default to English keywords unless the target information is
 specific to the Chinese internet.

@@ -2,8 +2,8 @@
 
 同一台宿主机、同一个 WSL 内核下，不同发行版的行为差异。本文只收**实测过**的结论。
 
-> **迁移背景**：Ubuntu 24.04 是此前的主力，日常工作现已转到 Fedora 44，两者并存。
-> `wsl -l -v` 里 Ubuntu 仍是默认（那个 `*` 标的是**默认**不是**当前**，见
+> **背景**：Ubuntu 24.04 是主力。日常工作曾经转到与它并存的 Fedora 44 上，后来放弃了（2026-11）；
+> 本文里 Fedora 的部分作为当时的实测记录保留。`wsl -l -v` 里 Ubuntu 一直是默认（那个 `*` 标的是**默认**不是**当前**，见
 > [`../agent/skills/wsl-windows-command/references/cross-distro.md`](../agent/skills/wsl-windows-command/references/cross-distro.md) 第 1 节）。
 
 ---
@@ -329,6 +329,15 @@ if command -v wslview >/dev/null 2>&1; then export BROWSER=wslview; fi
 于是**一个字都不用改**就认到它，`shell_common` 保持发行版中立。实测 `BROWSER=wslview`
 自动生效，`wslview https://example.com` 成功唤起 Windows 默认浏览器。
 
+> **更正（2026-11-21，Debian 13 实测）**：上面的「一个字都不用改」只对**嵌套 shell** 成立。
+> 守卫原先在 `shell_common` 第 2 节，而 `~/.local/bin` 到第 3 节才进 PATH；全新的登录 shell
+> 走到守卫时 PATH 里还没有 `~/.local/bin`，`command -v wslview` 落空，**第一层终端的
+> `BROWSER` 一直是空的**。从已打开的终端里再起一层 shell 时 PATH 是继承来的，于是验证
+> （包括 `setup/README.md` 验证清单第 6 条）照样通过——这就是当初「实测生效」的由来。
+> 有 wslu 的 Ubuntu 不受影响（`/usr/bin/wslview`）。守卫已挪到第 3 节 `export PATH` 之后。
+> 验证要从干净环境起：
+> `env -i HOME="$HOME" TERM=xterm PATH=/usr/bin:/bin bash -lic 'echo $BROWSER'`
+
 ### 4.8 步骤 7：fcitx5 绕路方案可行，但比预想的多一件事
 
 **结论：可行。** 但交接文档给的两行（装包 + 在 `~/.zshrc` 里 `fcitx5 -d`）**不够**。
@@ -512,3 +521,38 @@ Components: main
 
 `/usr/bin/python3` 是 **3.13.5**（留给 OS 包），uv 另装 3.10 / 3.12 于
 `~/.local/share/uv/python/`。与主桌面同一条约定，**没有例外**：不要为了项目版本去动系统 `python3`。
+
+---
+
+## 六、`gh` 的版本：发行版仓 vs GitHub 官方源
+
+2026-10-25 实测。装法、换源步骤、更新与回退命令见
+[`../git-github/README.md`](../git-github/README.md) 第三节。
+
+| 发行版 | 包管理器 | 官方仓里的 `gh` | 对应上游发布日 | 落后最新（2.103.2） |
+| :--- | :--- | :--- | :--- | :--- |
+| Debian 13 (trixie) | apt | **2.46.0-3** | 2024-03-20 | **80 个版本 / 19 个月** |
+| Ubuntu 24.04 (noble) | apt | **2.45.0-1ubuntu0.3** | 2024-03-04 | 81 个版本 |
+| Fedora 44 | dnf | **2.97.0-2.fc44** | 2026-07-31 | 9 个版本 |
+| GitHub 官方 apt 源 | apt | **2.103.2** | 2026-10-23 | 0 |
+
+**Debian 的 apt 源是三者里最旧的，Fedora 的 dnf 源反而最新。** 这不是 Fedora 打包更勤，
+而是 Debian / Ubuntu 的 `gh` 打包后就不再跟进上游（Go 写的工具，安全修复也常常不 backport）。
+
+> **`gh --version` 里括号中的日期是打包日，不是上游发布日。**
+> Debian 包打印 `(2025-01-13 Debian 2.46.0-3)`，而上游 v2.46.0 实际发布于 **2024-03-20**。
+> 差一年多，只看这一行会以为它还挺新。
+
+**Fedora 不用换源**（第四节 4.2 的结论成立）：dnf 源跟随上游，落下的 9 个版本里只有
+`gh pr checkout --worktree`（2.98.0）和 `gh pr create --attach`（2.99.0）两个功能；
+而 GitHub 只提供 apt 仓库，RPM 系要自己维护。
+
+**Debian 要换源**：上表第一行那个 2.46.0 落后 19 个月，`gh skill`、`gh agent-task`、
+`gh pr create --reviewer @copilot` 这些 2025 年之后才有的命令全都没有，
+连 `gh api` / `gh pr diff` 的终端转义序列注入修复（2.97.0）也没有——
+外部仓库的 PR 内容会被原样打印给 agent 看。换源三步见
+[`../git-github/README.md`](../git-github/README.md) 第三节第 2.1 小节。
+
+> 这台机器 2026-10-25 已换到官方源，`gh` 从 2.46.0-3 变成 **2.103.2**。
+> 顺带解释了 [`setup/README.md`](setup/README.md) 参考环境表里 Ubuntu 那台的 **gh 2.93.0**：
+> apt 候选只有 2.45.0，**装不出 2.93.0**，那台也不是 apt 装的（官方源是能解释这个版本的常见来源）。

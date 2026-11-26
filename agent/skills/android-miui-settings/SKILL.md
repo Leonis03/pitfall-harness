@@ -23,31 +23,31 @@ However, invoking Android's `/system/bin/settings` directly fails due to Bionic 
 
 ## 1. Quick Execution via `miui-settings.sh`
 
-> **Paths.** Installed copies exist at `~/.gemini/config/skills/android-miui-settings/` and `/root/vibe-coding-pitfalls-private/agent/skills/android-miui-settings/`. Running `bash <skill-dir>/scripts/miui-settings.sh` works out-of-the-box.
+> **Paths.** Commands below use `~/.agents/skills/android-miui-settings/`. Any installed copy works: use `~/.claude/skills/android-miui-settings/`, `~/.gemini/config/skills/android-miui-settings/`, or a path relative to this SKILL.md instead -- only one of the three needs to exist.
 
 ### 1.1 Private DNS (DoT) Automation
 Android's Private DNS encrypts DNS traffic using DNS-over-TLS (DoT). Configure it instantly:
 
 ```bash
 # Check current Private DNS mode, hostname, and ConnectivityService TLS validation
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns status
 
 # Switch to AliDNS DoT (dns.alidns.com)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns ali
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns ali
 
 # Switch to Tencent DNSPod DoT (dot.pub)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns dnspod
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns dnspod
 
 # Switch to Cloudflare or Google DoT
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns cloudflare
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns google
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns cloudflare
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns google
 
 # Set custom DoT hostname
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns hostname <your-domain>
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns hostname <your-domain>
 
 # Revert to Automatic (opportunistic) mode or turn off
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns auto
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns off
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns auto
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns off
 ```
 
 ---
@@ -57,16 +57,16 @@ Android's `PhantomProcessKiller` strictly caps spawned subprocesses (Termux bash
 
 ```bash
 # Check current monitor state, max limit, and live ActivityManager settings
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh phantom status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh phantom status
 
 # Completely disable phantom process monitoring and maximize process limit (2147483647)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh phantom disable
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh phantom disable
 
 # Set custom limit (e.g. 512, 1024)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh phantom limit 1024
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh phantom limit 1024
 
 # Re-enable stock monitoring
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh phantom enable
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh phantom enable
 ```
 
 ---
@@ -76,17 +76,17 @@ MIUI / HyperOS enforces a proprietary `PRIORITY_MIUI_REFRESH_RATE` vote in `Disp
 
 ```bash
 # Check current refresh rate settings and active DisplayModeDirector votes
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate status
 
 # Lock constant 120Hz (disables smart dynamic drop to 60/30/1Hz)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 120
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 120
 
 # Switch to 90Hz or 60Hz
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 90
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 60
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 90
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 60
 
 # Restore dynamic smart FPS
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate auto
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate auto
 ```
 
 ---
@@ -96,16 +96,16 @@ Speed up UI transitions or disable animations for headless / VNC / remote operat
 
 ```bash
 # Check current animation scales
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh animation status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh animation status
 
 # Set to 0.5x (Fast)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh animation fast
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh animation fast
 
 # Disable animations completely (0.0x)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh animation off
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh animation off
 
 # Restore stock 1.0x
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh animation normal
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh animation normal
 ```
 
 ---
@@ -115,12 +115,12 @@ Prevent background service kills during long-running tasks:
 
 ```bash
 # Restrict PowerKeeper AppOps (RUN_IN_BACKGROUND ignore)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh powerkeeper restrict
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh powerkeeper status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh powerkeeper restrict
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh powerkeeper status
 
 # Add Termux to Doze battery whitelist
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh doze whitelist com.termux
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh doze status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh doze whitelist com.termux
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh doze status
 ```
 
 ---
@@ -130,22 +130,22 @@ Manage notification interruption policies, Zen mode ringer, and audio streams:
 
 ```bash
 # Check current Zen mode, ringer mode, and notification policy
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dnd status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dnd status
 
 # Enable Contacts-Only ringing policy (priority mode + normal ringer + unmuted media)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dnd contacts-only
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dnd contacts-only
 
 # Turn DND completely on or off
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dnd on
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dnd off
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dnd on
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dnd off
 
 # Inspect all audio stream volumes (Media, Ringtone, Alarm, Notification)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volume status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh volume status
 
 # Adjust specific stream volume
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volume media 75
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volume ring 10
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volume alarm 12
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh volume media 75
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh volume ring 10
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh volume alarm 12
 ```
 
 ---
@@ -156,16 +156,16 @@ Apply curated optimization sets for specific operating modes:
 ```bash
 # Full performance preset for AI Coding Agents:
 # Disables phantom killer (limit=max), locks 120Hz, sets 0.5x animations, restricts PowerKeeper, whitelists Termux
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh preset performance
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh preset performance
 
 # Balanced preset: phantom limit 512, dynamic 120Hz, 0.5x animations
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh preset balanced
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh preset balanced
 
 # Battery saver preset: 60Hz, 1.0x animations, phantom limit 128
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh preset battery
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh preset battery
 
 # Restore factory stock settings
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh preset stock
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh preset stock
 ```
 
 ---
@@ -175,19 +175,19 @@ Safely interact with Android apps and capture screen state:
 
 ```bash
 # Check currently focused window and activity (safety check before input simulation)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh input focus
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh input focus
 
 # Tap at coordinates (x y) -- warns if Termux is in foreground
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh input tap 500 1000
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh input tap 500 1000
 
 # Swipe gesture
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh input swipe 500 1500 500 500 300
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh input swipe 500 1500 500 500 300
 
 # Key events (26=POWER, 3=HOME, 4=BACK, 187=APP_SWITCH)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh input key 4
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh input key 4
 
 # Capture screen directly into container directory (auto-translates storage paths)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh screencap /root/md/screen.png
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh screencap /root/md/screen.png
 ```
 
 ---
@@ -197,15 +197,15 @@ Export and restore all settings (`global`, `system`, `secure`) via structured JS
 
 ```bash
 # Export complete snapshot (~880+ settings) with device metadata
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh backup /root/md/settings_backup.json
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh backup /root/md/settings_backup.json
 
 # Dry-run restore check
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --dry-run
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --dry-run
 
 # Selective restore
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --dns
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --display
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --animation
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --dns
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --display
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --animation
 ```
 
 ---
@@ -215,17 +215,17 @@ Android separates settings into three tables: `global`, `secure`, and `system`.
 
 ```bash
 # Read a setting
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh get global private_dns_mode
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh get system screen_off_timeout
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh get global private_dns_mode
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh get system screen_off_timeout
 
 # Write a setting
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh put system screen_off_timeout 600000
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh put system screen_off_timeout 600000
 
 # Delete an override key
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh delete global http_proxy
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh delete global http_proxy
 
 # List all keys in a table with regex filtering
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh list global dns
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh list global dns
 ```
 
 ---

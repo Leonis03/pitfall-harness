@@ -14,7 +14,7 @@
 
 | 时钟 | 存在哪 | 谁写 | 谁读 |
 | :--- | :--- | :--- | :--- |
-| **硬件 RTC** | 主板纽扣电池供电的 CMOS | 最后关机的一方，以及任何跑过 `hwclock --systohc` 的系统 | 每个系统，开机时 |
+| **硬件 RTC** | 主板纽扣电池供电的 CMOS | Windows，按它的 `RealTimeIsUniversal` 指定的约定写；Linux 内核，NTP 同步期间每 11 分钟写一次，按开机时被告知的约定写；以及任何跑 `hwclock --systohc` 的人（第 1.1 节） | 每个系统，开机时 |
 | **系统时钟** | 运行中的内核 | 操作系统：开机时从 RTC 取，之后由 NTP 校正 | 全部进程 |
 | **NTP** | 网络 | 上游服务器 | `w32time` / `chrony` / `systemd-timesyncd` |
 
@@ -50,6 +50,40 @@ timedatectl show -p LocalRTC        # yes = RTC 存本地时间，no = 存 UTC
 > 之前毫无效果——而中间那次关机写 RTC，用的还是**旧值**，因为内核保留的是开机时读到的那个
 > 标志。Linux 的 `LocalRTC` 同理。所以改约定不是两分钟的编辑：它要等一次重启才变得可观测，
 > 而 8 小时的错误恰恰是在那次重启后才出现。改 → 重启 → 再测。
+
+### 1.1 谁在写 RTC
+
+约定不只是两边怎么**读** RTC：两边也都会**写**它，RTC 里存的是最后写入的那一方留下的值。
+只有两边写入的约定都是对方读取的约定，契约才成立。
+
+**Windows 让 RTC 保持在它的开关所指定的约定上。** 在两台开关几周没动过的机器上实测：
+
+| 机器 | `RealTimeIsUniversal` | RTC 里实际存的 | 怎么测的 |
+| :--- | :--- | :--- | :--- |
+| A（第 5.1 节） | `1` | **UTC** | 两周的 `Kernel-General` 事件 1（第 3.1 节）：生效的是 `RealTimeIsUniversal=true`，`CmosTime` 等于时钟正确时的真实 UTC。Windows 与 Linux（`LocalRTC=no`）交替开机数周，全部正确，而且 Windows 时间服务是关着的——8 小时的错误会一直显示在屏幕上 |
+| B（第 5.2 节） | `0`（值不存在） | **本地时间** | 两周的 `Kernel-General` 事件 12（开机）和事件 1：每次开机和唤醒时 RTC 都是真实本地时间，从未记录过接近时区偏移量的改动 |
+
+Windows 具体在什么时候写 RTC——校时、唤醒还是关机——没有测过，契约也不依赖它：约定跟着
+开关走，而生效的开关是**开机时**读到的那个（读法见第 3.1 节）。
+
+> 之前对第 8 节的一种解读认为 Windows **不管开关是几都写本地时间**，并据此把机器 A 改成了
+> 两边都存本地时间。它依据的那几次开机之间开关被改过，所以那几次关机时生效的开关和注册表里
+> 显示的不是同一个。机器 A 推翻了这个结论——开关为 `1`，RTC 存 UTC，持续数周——第 8 节
+> 事故三记录了照它去做的代价。
+
+**在 Linux 上，写 RTC 的是内核，不是关机。** chrony 开着 `rtcsync`（Fedora 默认开）时，
+内核会在 NTP 同步期间每 11 分钟把系统时钟写进 RTC，按**开机时**被告知的约定写。
+`LocalRTC=yes` 时，systemd 在开机早期告诉内核，并记一行日志：
+
+```text
+RTC configured in localtime, applying delta of 480 minutes to system time.
+```
+
+（480 分钟 = UTC+08:00）。`LocalRTC=no` 时没有这一行。所以 `timedatectl set-local-rtc`
+改的是**下一次开机**怎么读 RTC，不是正在运行的内核怎么写它：重启之前内核仍按旧约定写，
+它的下一次 11 分钟写入可能把改完后那次 `hwclock --systohc` 的结果覆盖掉。这个覆盖是按内核
+和 systemd 的机制推断的，没有实际观察到——第 8 节测到的那次改动之后马上就重启了。
+**改完 `LocalRTC` 立刻重启**，然后找上面那一行日志。
 
 ---
 
@@ -107,6 +141,23 @@ Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' |
   Select-Object RealTimeIsUniversal, TimeZoneKeyName
 ```
 
+注册表显示的是**下一次**开机要用的值。正在运行的内核用的值是开机时读到的，Windows 会把它
+记下来：每次时钟变动（校时、唤醒、手动设置）都会写一条 `Kernel-General` 事件 1，它的 XML
+里带着这个值，旁边还有 RTC 的原始值。
+
+```powershell
+$e = Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-General'; Id=1} -MaxEvents 1
+$e.TimeCreated
+([xml]$e.ToXml()).Event.EventData.Data |
+  Where-Object Name -in 'NewTime','CmosTime','RealTimeIsUniversal' | Select-Object Name, '#text'
+```
+
+那里的 `RealTimeIsUniversal` 是 `true` 或 `false`：写这条事件的那次开机**实际生效**的开关。
+`CmosTime` 是 RTC 的原始值，不管存的是什么都带一个 `Z`；把它和独立来源（第 3.3 节）的真实
+时间比较，就知道 RTC 存的是哪种约定。唤醒事件上不要拿它和 `NewTime` 比：那时 `NewTime`
+就是按同一个开关**从** RTC 算出来的，两者永远一致。消息正文说的是同一件事
+（`RTC time is in UTC: true`），但用的是显示语言；XML 字段名不会变。
+
 `w32tm /query /status` 报 **`The service has not been started. (0x80070426)`**
 不是网络问题。它的意思是 Windows Time 服务被禁用了，时钟在自由走，没有任何东西会校正它。
 
@@ -130,6 +181,16 @@ chronyc tracking                            # 客户端是 chrony 时
 `hwclock --show` 和 `hwclock --show --utc` 读的是**同一个** RTC，只是解释方式不同；
 util-linux 永远按**本地时间**打印，所以这两行相差正好一个 UTC 偏移量。与系统时钟一致的
 那个解释，就是 RTC **实际装着**哪种约定——如果两个都不一致，说明 RTC 本身是陈旧的。
+
+```bash
+journalctl -b | grep -i 'configured in localtime'                # 只有本次开机时 LocalRTC=yes 才有
+journalctl -b -u chronyd -u chrony | grep -E 'wrong by|stepped'   # 本次开机时差了多少
+```
+
+`hwclock` 的比较只能在本系统第一次 11 分钟写入之前，显示**另一个**系统留在 RTC 里的值
+（第 1.1 节）。之后 RTC 里就是本系统自己写的值，两种读法说明不了另一侧的任何事。chrony 的
+第一次校正才是能留下来的记录：本次开机出现 `System clock wrong by 28799.x seconds`（或
+`-28800.x`），说明在它之前运行的系统按另一种约定写了 RTC；一两秒只是漂移。
 
 > 比较这两行要比较的是**解析出的时刻**，不是字符串。`hwclock` 打印的是带本地偏移量的
 > 本地时间串，`date -d` 能正确读它；但拿 UTC 那条读数做比较时，基准也必须是 UTC 时刻。
@@ -165,39 +226,69 @@ curl -sI https://<any-https-host> | grep -i '^date:'
 > 而且是**两边都适用**——因为 RTC 里存什么由**最后写它的那一方**决定，不由读它的一方决定。
 > 换过写方就要重测：一次手工拨表，或者从另一个系统关机，都可能把它翻过来。
 
+> **改这一侧之前，先读另一侧。** 动 `LocalRTC` 之前，先读 Windows 的 `RealTimeIsUniversal`
+> ——注册表里的值和实际生效的值（第 3.1 节）——反过来也一样。每一侧都可能通过自己的全部检查，
+> 而契约已经坏了：第 8 节事故三就是一次 Linux 侧的改动，Linux 侧的探针全部通过，下一次
+> 进 Windows 却差了 8 小时。
+
 ### 方案 A —— RTC 存本地时间
 
 ```powershell
-# Windows：把 RTC 当本地时间读
+# Windows：按本地时间读并保持 RTC（下次重启生效）
 Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' `
   -Name RealTimeIsUniversal -Value 0
 ```
 
 ```bash
-# Linux：把 RTC 当本地时间读
+# Linux：按本地时间读写 RTC
 sudo timedatectl set-local-rtc 1
 sudo hwclock --systohc --localtime     # 把当前（正确的）时间写回去
-hwclock --show --localtime              # 必须与 `date` 一致
+sudo systemctl reboot                  # 立刻重启：在此之前内核仍按旧约定写
+# 重启之后
+journalctl -b | grep -i 'configured in localtime'   # 必须有这一行
+hwclock --show --localtime             # 必须与 `date` 一致，NTP 同步 12 分钟后仍一致
 ```
 
 ### 方案 B —— RTC 存 UTC
 
 ```powershell
-# Windows：把 RTC 当 UTC 读
+# Windows：按 UTC 读并保持 RTC（下次重启生效）
 Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' `
   -Name RealTimeIsUniversal -Value 1
 ```
 
 ```bash
-# Linux：把 RTC 当 UTC 读
+# Linux：按 UTC 读写 RTC
 sudo timedatectl set-local-rtc 0
 sudo hwclock --systohc --utc           # 把当前（正确的）时间写回去
-hwclock --show --utc                   # 必须与 `date -u` 一致
+sudo systemctl reboot                  # 立刻重启，理由同上
+# 重启之后
+journalctl -b | grep -i 'configured in localtime'   # 必须没有输出
+hwclock --show --utc                   # 必须与 `date -u` 一致，NTP 同步 12 分钟后仍一致
 ```
 
 方案 B 与 Linux 默认值（`LocalRTC=no`）和常见 BIOS 默认（UTC）一致；方案 A 与 Windows
 默认值一致。**两种都行，混用就是 bug。** 选定之后写进安装记录——这是双系统契约里唯一
 没有工具能替你读出来的那一项。
+
+### 在 Windows 旁边新装 Linux
+
+还能选的时候，优先**方案 B（UTC）**：
+
+- 它是所有发行版的默认值，重装 Linux 侧之后契约不用重做。方案 A 每次重装 Linux 都要重新
+  设置一遍，还要按第 1.1 节立刻重启。
+- `timedatectl` 自己就警告，RTC 存本地时间"不能被完全支持"（cannot be fully supported）。
+- 代价是 Windows 上一个注册表值（`RealTimeIsUniversal = 1`），设一次即可，只有重装
+  Windows 后才要再设。
+
+安装程序在磁盘上发现 Windows 时，可能会自行选择本地时间，而且不一定会问。不管它显示了
+什么，第一次开机后都检查：
+
+```bash
+timedatectl show -p LocalRTC        # 方案 B 应为 no
+```
+
+然后在信任它之前，按第 7 节完整跑一圈跨系统验证。
 
 > `hwclock --systohc` 会按当前生效的 RTC 约定去解释**系统**时钟。显式带上 `--utc` 或
 > `--localtime`，避免写入时被误解。
@@ -259,7 +350,7 @@ Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Window
 事件 `35` 是「确实修过」的证据，`134` 是「让修复变得不可能的那张网络」的第一个信号。这
 就是「系统自己修好了」和「我知道它被修好了、也知道为什么」之间的差别。
 
-### 5.1 这台机器上的策略
+### 5.1 机器 A（Windows + Fedora）上的策略
 
 这里是有意做的选择，写下来是为了下一个读者不必重新发现：
 
@@ -268,7 +359,7 @@ Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Window
 | W32Time 服务 | `Disabled`，已停止 | **故意关掉自动修复**。被悄悄补好的时钟会把故障藏起来；运维要的是找到原因，而不是接手一个已经被修正的现象 |
 | `...\W32Time\Parameters` 下的 `Type` | `NoSync` | 设置界面那个开关写的另一半——两处都改，服务才真的保持关闭 |
 | NTP 源 | 仍保留在 `NtpServer` 里 | 留着服务就能一条命令重新启用，`w32tm /stripchart` 也还有可测量的目标 |
-| RTC 约定 | **两边都用 UTC** —— Windows 侧 `RealTimeIsUniversal = 1`，Linux 侧 `LocalRTC = no` | 是实测出来的，不是假设：RTC 的原始值等于 **UTC**（第 8 节第 6、7 条）。Windows 出厂就是这个模式——**不要动 `RealTimeIsUniversal`**；Linux 侧也是发行版默认值，同样不用改。核验只要一条命令：`timedatectl show -p LocalRTC`（应为 `no`），且 `hwclock --show --utc` 必须等于 `date -u` |
+| RTC 约定 | **两边都用 UTC** —— Windows 侧 `RealTimeIsUniversal = 1`，Linux 侧 `LocalRTC = no` | 是实测出来的，不是假设：RTC 的原始值等于 **UTC**（第 8 节事故二），而且几周的 Windows 事件显示开关为 `1` 时 RTC 一直保持 UTC（第 1.1 节）。Windows 现在的模式就是对的——**不要动 `RealTimeIsUniversal`**；Linux 侧也是发行版默认值，同样不用改，重装也会保持，但要检查（第 4 节）。核验用 `timedatectl show -p LocalRTC`（应为 `no`），且 `hwclock --show --utc` 必须等于 `date -u`。2026-11-21 付出代价重新验证过一次（第 8 节事故三） |
 | 快速启动 | 关闭 | 见第 6 节 |
 | 时区 | 固定 UTC+08:00，无夏令时 | |
 
@@ -278,6 +369,21 @@ Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Window
 
 探针脚本存在的理由也在这里：它随时报告机器的状态，让运维能分辨「故障还在」和「一小时
 前修好了而我没注意到」——从外面看，一台会自愈的时钟就是这个样子。
+
+### 5.2 机器 B（Windows + Linux Mint）
+
+第二台机器，2026-11-21 只读测量。它用的是另一种约定，Windows 侧与之自洽：
+
+| 设置 | 取值 |
+| :--- | :--- |
+| RTC 约定，Windows 侧 | **本地时间** —— `RealTimeIsUniversal` 不存在（= `0`）；`Kernel-General` 事件 1 显示生效的是 `RealTimeIsUniversal=false`，日志覆盖的两周里每次开机和唤醒时 RTC 都是真实本地时间 |
+| RTC 约定，Linux 侧 | **尚未测量** —— 必须是 `LocalRTC = yes` 才匹配。如果是 `no`，每次 Mint 会话之后再开 Windows 都会慢 8 小时（第 2 节） |
+| W32Time 服务 | `Automatic`，运行中，`Type = NTP` —— 8 小时的错误开机后会被校正，但仍会留下一条改动接近时区偏移量的 `Kernel-General` 事件 1；一条都没有 |
+| 快速启动 | 第一次测量时**开着**，当天已关闭 |
+| 时区 | 固定 UTC+08:00，无夏令时 |
+
+如果 Mint 侧是 `LocalRTC = no`，就把这台机器改成两边都用 UTC（方案 B），而不是改 Mint：
+这是机器 A 已经验证过的约定，而且重装 Linux 侧也不会丢。
 
 ---
 
@@ -300,9 +406,6 @@ Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 
 
 `0` = 快速启动关闭（双系统机器上的安全设置），`1` = 开启。
 
-快速启动开启时，「只有 Linux 时间不对」这个症状有第三种可能成因，**正确做法是关掉快速
-启动再复测**，而不是先去动 RTC 约定。
-
 ---
 
 ## 7. 验证清单
@@ -318,6 +421,7 @@ w32tm /query /status                                             # 期望：Stra
 w32tm /stripchart /computer:<your-ntp-server> /dataonly /samples:3   # 期望：|偏差| < 1 秒
 Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' |
   Select-Object RealTimeIsUniversal                               # 期望：0 或 1，与所选约定一致
+# 以及本次开机实际生效的值（第 3.1 节）                           # 期望：与注册表一致
 ```
 
 **Linux**
@@ -326,17 +430,23 @@ Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' |
 timedatectl show -p LocalRTC -p NTPSynchronized
 # 按所选约定：这里是 --utc，本地约定则用 --localtime
 hwclock --show --utc       # 必须等于 `date -u`；用 --localtime 时必须等于 `date`
+journalctl -b | grep -i 'configured in localtime'                # 当且仅当 LocalRTC=yes 时有
+journalctl -b -u chronyd -u chrony | grep -E 'wrong by|stepped'   # 没有接近时区偏移量的校正
 ```
 
 **跨系统**
 
 ```text
 1. Linux 的 `date` 与 Windows 的时钟一致（分钟级）
-2. 重启进另一个系统再比一次——一致性能扛过重启
+2. 重启进另一个系统再比一次——一致性能扛过重启；
+   在 Linux 上同时看那次开机 chrony 的校正
 3. 两边都起来之后，实测偏差仍小于一秒
+4. 改过 LocalRTC 之后：立刻重启，NTP 同步 12 分钟后再查一次 RTC
+   ——那时内核自己的 RTC 写入已经发生过了
 ```
 
-第 2 步才是抓 RTC 约定 bug 的那一步：**只在下次重启前正确的时间，等于没修好。**
+第 2 步才是抓 RTC 约定 bug 的那一步：**只在下次重启前正确的时间，等于没修好。** 两个方向
+都要跑——Linux 到 Windows、Windows 到 Linux——因为每个方向检验的是另一侧的写入。
 
 **机器状态存档**（Windows，每项一行）：
 
@@ -354,7 +464,7 @@ Linux 上 `check-time-sync.sh`。**它们只报告，不改任何设置。**
 
 ---
 
-## 8. 一次实测记录
+## 8. 三次实测记录
 
 记下来，是为了让推理可复现，而不是变成口口相传的玄学。
 
@@ -393,7 +503,26 @@ Linux 上 `check-time-sync.sh`。**它们只报告，不改任何设置。**
 不是本地时间。第 6 条对 10-23 那次开机是对的，对「RTC 到底是什么」却是错的：RTC 里存什么
 取决于**最后写它的那一方**，一次手工拨表、或一次来自另一套系统的关机，都足以把它翻过来。
 
-**教训。** 两条，都是关于同一个开关：
+**事故三 —— 只改了一侧，2026-11-21。**
+
+基于「Windows 不管开关是几都写本地时间」这个解读（第 1.1 节），把这台机器（机器 A）的
+Linux 侧改成了本地时间：`timedatectl set-local-rtc 1`、`hwclock --systohc --localtime`，
+然后立刻重启。Linux 侧的检查全部通过：
+
+- 开机日志里有 `RTC configured in localtime, applying delta of 480 minutes`；
+- 那次开机 chrony 没有任何校正，`date` 与 HTTP `Date` 头一致；
+- NTP 同步 17 分钟后，`hwclock --show --localtime` 与 `date` 仍相差不到一秒，探针报
+  `RTC convention OK`。
+
+下一次进 Windows，时钟**快了 28,801 秒**。它的开关是 `1`，改之前没人读过：Windows 把存着
+本地时间的 RTC 当成 UTC 读，又加上了时区。时间服务是关着的，没有东西去校正——错误立刻
+显示在屏幕上，这正是第 5.1 节想要的效果。
+
+同一台 Windows 的日志也说明了原来的配置为什么一直正常：两周的 `Kernel-General` 事件都是
+`RealTimeIsUniversal=true`，RTC 里存的是真实 UTC。Linux 侧已改回 `LocalRTC = no`，立刻
+重启，探针重新通过。
+
+**教训。** 四条，都是关于同一份契约：
 
 1. **这个开关在开机时被读取。** 机器运行中改 `RealTimeIsUniversal`，在下次重启前不生效——
    而两次重启之间那次关机写 RTC，用的**还是旧值**。12:52 改的那一次，在下次重启之前
@@ -401,7 +530,12 @@ Linux 上 `check-time-sync.sh`。**它们只报告，不改任何设置。**
 2. **要测 RTC，不要推。** 决定性的测试在 Linux 侧：同一个硬件时钟可以按两种约定各读一次，
    `hwclock --show` 和 `hwclock --show --utc`。Windows 侧等价物是开机时间戳：那次开机的
    第一条时间服务事件带的就是当时的时钟值，所以 `显示值 = RTC + 时区`（开关为 1）或
-   `显示值 = RTC`（开关为 0），直接反推即可。
+   `显示值 = RTC`（开关为 0），直接反推即可。`Kernel-General` 事件 1 则直接写明生效的开关
+   和 RTC 原始值（第 3.1 节）。
+3. **改这一侧之前，先读另一侧。** 探针只看得到一侧，每一侧都可能通过自己的全部检查，
+   而契约已经坏了。只有改动**之前**读到的另一侧开关，加上改动**之后**开进另一个系统，
+   才能说明契约是否成立。
+4. **改 `LocalRTC` 之后要立刻重启。** 正在运行的内核仍按开机时被告知的约定写 RTC（第 1.1 节）。
 
 **该改哪一侧。** 测量说了算，而这里的答案是**哪一侧都不用改**：契约就是**两边都用 UTC**，
 这正是两套系统本来的状态。`RealTimeIsUniversal = 1`（Windows）、`LocalRTC = no`（Linux）。

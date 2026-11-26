@@ -216,15 +216,53 @@ wsl --import-in-place Ubuntu D:\WSL\Ubuntu\ext4.vhdx
 - `--import-in-place` 注册的就是你指定的那**一个文件**，没有中间层。误 `--unregister`
   的后果比注册过的发行版更直接：磁盘本身没了。
 
-## 以后新装时避免再落到 C 盘
+## 以后新装时直接指定安装位置
 
-如果以后新安装发行版，可以直接指定位置：
+新装的发行版可以一步到位落到目标目录，不必「先装到 C 盘再迁移」：
 
 ```powershell
-wsl --install Ubuntu --location D:\WSL\Ubuntu
+wsl --install <Distro> --location <Dir>
 ```
 
 这只影响新安装，不会迁移已经存在的发行版。
+
+### 实测：Debian 装到 `C:\wsl\debian`
+
+WSL 3.0.3.0（Store 版）上实测：
+
+```powershell
+wsl --install Debian --location C:\wsl\debian --no-launch
+```
+
+- 目标目录**可以预先存在且为空**，安装照样成功，不需要自己先建。
+- 装完 `wsl -l -v` 里名字就是 `Debian`；`wsl --list --online` 的条目名同样是 `Debian`
+  （friendly name 显示 `Debian GNU/Linux`），**没有** `Debian-13` 这种带版本号的条目。
+- 落点看两处：注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss\<发行版 GUID>` 的
+  `BasePath` 写成 `C:\wsl\debian`，`ext4.vhdx` 实体文件就在该目录下（刚装完约 0.3 GB）。
+- `--no-launch` 是给非交互场景加的：不加的话安装一结束就把发行版拉起来。
+
+### 陷阱：默认用户是 root，家目录是 `/root`
+
+没走完首次初始化的发行版，默认身份是 root：
+
+- 注册表 `DefaultUid` 写成 `0`
+- `wsl -d <Name> -- whoami` → `root`，`HOME=/root`
+
+用户名/密码的提示**不会被 `--no-launch` 消费掉**——它只在**交互式启动**（带 TTY 的
+`wsl -d <Name>`）时弹出来。`wsl -d <Name> -- <cmd>` 这种非交互调用根本不会触发它。
+于是 Agent 用 `wsl -d X -- id` 探测时看到的是 root，误以为「初始设置已经做过了」，
+把配置写进 `/root`，而真正的用户家目录是 `/home/<your-linux-user>`。
+
+走完首次初始化之后：`DefaultUid` 变成 `1000`，`HOME` 变成 `/home/<your-linux-user>`，
+默认用户是新建的那个账号（Debian 建出来的账号默认就在 sudo 组里）。
+
+**判断「初始化做没做完」要查注册表的 `DefaultUid`（0 = 还没做），
+不要靠「默认用户是谁」来推断。**
+
+### 需要 root 但拿不到密码时
+
+`wsl -d <Name> -u root` 直接以 root 进入，不经过 sudo，也就不需要密码。装配置、写
+`/etc/*`、跑 `apt` 都可以用它，比临时改 sudoers 干净。
 
 ## 参考
 

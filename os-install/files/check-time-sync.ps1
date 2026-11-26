@@ -22,6 +22,9 @@
 #   6. Windows fast startup (a stale RTC for the second OS)
 #   7. time-service events whose timestamps sit in the future -- the signature
 #      of a clock that was running fast and was later corrected
+#   8. the RTC convention in force for THIS boot, read from the newest
+#      Kernel-General event 1 since boot and compared with the registry: the
+#      registry can change after boot, the running kernel keeps what it read
 #
 # Companion: check-time-sync.sh (same checks, Linux side).
 
@@ -237,12 +240,45 @@ if ($tzInfo) {
     }
     Add-Finding -Level 'INFO' -Check 'Time zone' -Detail "TimeZoneKeyName=$zone offset=$offsetText"
     if ($rtu -eq 1) {
-        Add-Finding -Level 'INFO' -Check 'RealTimeIsUniversal' -Detail '1 -- the RTC is read as UTC; the Linux side must use LocalRTC=no'
+        Add-Finding -Level 'INFO' -Check 'RealTimeIsUniversal' -Detail '1 -- Windows reads the RTC as UTC and keeps it in UTC; the Linux side must use LocalRTC=no'
     } elseif ($rtu -eq 0) {
         $absentNote = if ($rtuAbsent) { ' (the value is absent from the registry; 0 is the default -- the RTC holds local time)' } else { '' }
-        Add-Finding -Level 'INFO' -Check 'RealTimeIsUniversal' -Detail ("0 -- the RTC is read as local time; the Linux side must use LocalRTC=yes$absentNote")
+        Add-Finding -Level 'INFO' -Check 'RealTimeIsUniversal' -Detail ("0 -- Windows reads the RTC as local time and keeps it in local time; the Linux side must use LocalRTC=yes$absentNote")
     } else {
         Add-Finding -Level 'WARN' -Check 'RealTimeIsUniversal' -Detail "unexpected value: $rtu"
+    }
+
+    # The registry holds the value the NEXT boot will use. The value in force
+    # now was read at boot, and Windows logs it: every Kernel-General event 1
+    # (a clock change -- a sync, a resume, a manual set) carries the
+    # RealTimeIsUniversal the running kernel uses. Read it from the event XML,
+    # not from the message text, which is in the display language.
+    $bootTime = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).LastBootUpTime
+    $kg = $null
+    if ($bootTime) {
+        $kg = Get-WinEvent -FilterHashtable @{
+            LogName      = 'System'
+            ProviderName = 'Microsoft-Windows-Kernel-General'
+            Id           = 1
+            StartTime    = $bootTime
+        } -MaxEvents 1 -ErrorAction SilentlyContinue
+    }
+    $kgData = @{}
+    if ($kg) {
+        ([xml]$kg.ToXml()).Event.EventData.Data | ForEach-Object { $kgData[$_.Name] = $_.'#text' }
+    }
+    if (-not $kg) {
+        Add-Finding -Level 'SKIP' -Check 'In force this boot' -Detail 'no Kernel-General event 1 since boot (one is logged when the clock is synced, set or resumed) -- the value in force cannot be read'
+    } elseif (-not $kgData.ContainsKey('RealTimeIsUniversal')) {
+        Add-Finding -Level 'SKIP' -Check 'In force this boot' -Detail ("Kernel-General event 1 (version {0}) has no RealTimeIsUniversal field on this Windows build" -f $kg.Version)
+    } else {
+        $inForce = if ($kgData['RealTimeIsUniversal'] -eq 'true') { 1 } else { 0 }
+        $when = $kg.TimeCreated.ToString('yyyy-MM-dd HH:mm:ss')
+        if ($inForce -eq [int]$rtu) {
+            Add-Finding -Level 'OK' -Check 'In force this boot' -Detail ("RealTimeIsUniversal={0} (Kernel-General event 1 at {1}) -- matches the registry" -f $inForce, $when)
+        } else {
+            Add-Finding -Level 'WARN' -Check 'In force this boot' -Detail ("this boot runs with RealTimeIsUniversal={0} (Kernel-General event 1 at {1}), the registry says {2} -- the value was changed after boot and takes effect at the next restart; until then Windows keeps the RTC in the old convention" -f $inForce, $when, $rtu)
+        }
     }
 } else {
     Add-Finding -Level 'FAIL' -Check 'TimeZoneInformation' -Detail 'registry key not readable'

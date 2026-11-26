@@ -4,9 +4,9 @@
 >
 > **使用方式**：可以人工照做，也可以把本文件整个发给 AI Agent（Claude Code / Antigravity / Codex），让它按步骤执行并汇报验证结果。
 >
-> **本文以 Ubuntu 24.04 为基准**，它是此前的主力发行版。日常工作现已转到 Fedora 44，配置正在向它对齐；
+> **本文以 Ubuntu 24.04 为基准**，它是主力发行版。Fedora 44 曾经装过并用了一段时间，已于 2026-11 放弃；
 > 步骤本身大多通用，**发行版特定的差异单独记在** [`../distro-differences.md`](../distro-differences.md)
-> 第四节（包名、`chsh`、系统骨架、wslu 缺失、fcitx5 绕路），照本文做 Fedora 时对照那一节。
+> 第四节（包名、`chsh`、系统骨架、wslu 缺失、fcitx5 绕路），换别的发行版照本文做时对照那一节。
 
 **参考环境（2026-09-20 实测）**
 
@@ -36,6 +36,10 @@
 
 > 这台机器上 `files/wslconfig` 原件里的注释保留、数值重算后再部署（`processors=8` → `6`）。
 > `files/` 里存的是**主桌面那台**的原件，两台不要互相覆盖。
+>
+> 2026-10-25 更新：这台机器的 `gh` 已从 Debian 仓的 2.46.0 换成 **GitHub 官方源的 2.103.2**
+> （原因与步骤见 [`../../git-github/README.md`](../../git-github/README.md) 第三节）。
+> 上表的 `gh 2.46.0` 记录的是换源之前的状态。
 
 ---
 
@@ -110,6 +114,11 @@ cp files/wslconfig "$WIN_HOME/.wslconfig"
 sudo cp files/wsl.conf /etc/wsl.conf
 sudo sed -i 's|<your-linux-user>|'"$USER"'|' /etc/wsl.conf
 cat /etc/wsl.conf
+
+# 核对现网文件没有被别的安装器改过：Windows 端装过发行版的机器上，
+# /etc/wsl.conf 常常只有 [boot] systemd=true，interop 那一段压根没写过。
+# 预期差异只有 <your-linux-user> 那一行。
+diff /etc/wsl.conf files/wsl.conf
 ```
 
 **`appendWindowsPath=false` 解决什么问题**：Windows PATH 通常有几十上百个目录，注入后会导致补全卡顿、磁盘扫描变慢，而且 `find` / `sort` / `curl` 等同名命令会被 Windows 版本抢先。关掉之后 PATH 保持纯净，只显式桥接真正需要的几个命令。
@@ -122,6 +131,9 @@ cat /etc/wsl.conf
 sudo mkdir -p /mnt/c /mnt/d /mnt/e     # automount 关掉后 WSL 不再替你建挂载点
 cat files/fstab | sudo tee -a /etc/fstab
 ```
+
+> 原件最后那条跨发行版 bind 是**注释掉的**：单发行版机器没有任何东西读它，多发行版机器才在
+> 步骤 1.4 里取消注释。同理，单发行版只需要 `mkdir -p /mnt/c /mnt/d /mnt/e`。
 
 **为什么关掉 automount**：WSL 会持有它自动挂载的可移动介质，U 盘一旦被挂上，**Windows 就弹不出来，除非 `wsl --shutdown`**。改成 fstab 显式列举固定盘，其它盘符一律不碰。临时要用某个 U 盘，现用现挂（命令写在 `files/fstab` 的注释里），**弹出前记得 `umount`**。
 
@@ -167,7 +179,15 @@ sudo systemctl restart systemd-binfmt
 > 生效。装了 `wsl-binfmt-guard.timer` 就别折腾这些——先 `systemctl list-timers` 等满一个 30 秒
 > 周期。断了之后 30 秒内连敲三条命令就断定机器坏了，是这里最容易犯的错。
 
-#### 1.4 `/mnt/wsl` 跨发行版共享守护（**装了 1.3 就一起装**）
+#### 1.4 `/mnt/wsl` 跨发行版共享守护（**多发行版机器**）
+
+**只装了一个发行版就整步跳过**：`files/fstab` 里那条 bind 默认是注释掉的，没有东西需要守护。
+
+装了两个及以上才做，而且「取消注释」和「装守护」是同一件事——先做前者，否则 timer 每 30 秒
+读一遍 fstab、什么也匹配不到：
+
+1. 编辑 `/etc/fstab`，把最后一行开头的 `#` 去掉，`<Distro>` 换成 `echo $WSL_DISTRO_NAME` 的输出；
+2. 装守护：
 
 ```bash
 sudo cp files/systemd/wsl-mount-guard.service files/systemd/wsl-mount-guard.timer \
@@ -176,7 +196,10 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now wsl-mount-guard.timer
 ```
 
-**为什么需要**：`files/fstab` 里那条 `/ /mnt/wsl/<Distro> none bind,nofail 0 0` 只保证**本发行版
+验证：`findmnt -no TARGET "/mnt/wsl/$WSL_DISTRO_NAME"` 应打印该路径，`systemctl is-active
+wsl-mount-guard.timer` 应为 `active`。改了 fstab 之后要 `wsl.exe --shutdown` 才生效。
+
+**为什么需要**：取消注释之后，`files/fstab` 里那条 `/ /mnt/wsl/<Distro> none bind,nofail 0 0` 只保证**本发行版
 开机**时把共享恢复。`/mnt/wsl` 是所有发行版共用的 tmpfs，挂载传播是双向的——**另一个发行版优雅
 关机**时，它的 systemd 会卸载自己命名空间里那些传播过去的副本，卸载再传播回来，把你这边的原始
 bind 一起带走，而且在你下次重启前没有任何东西会恢复它。
@@ -234,8 +257,18 @@ git clone https://github.com/zsh-users/zsh-syntax-highlighting \
   "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting"
 
 # 设为默认 shell
-chsh -s "$(which zsh)"
+# 必须写用户名：chsh 不带用户名时作用于"调用者"，加 sudo 就变成了 root
+sudo chsh -s "$(which zsh)" "$(whoami)"
 ```
+
+> **`chsh` 的用户名陷阱**：不带用户名的 `chsh` 改的是**调用者**的登录 shell。
+> `sudo chsh -s "$(which zsh)"` 看着像"给我的账号换 shell"，实际改的是 **root** 的
+> （2026-10-25 实测：`/etc/passwd` 里 root 一行变成 `/usr/bin/zsh`，而目标用户仍是 `/bin/bash`，
+> 而且**没有任何报错**）。改完记得核对两行：
+> ```bash
+> grep "^$(whoami):" /etc/passwd   # 期望 ...:/bin/zsh
+> grep "^root:"    /etc/passwd     # 期望 ...:/bin/bash
+> ```
 
 ---
 
@@ -297,6 +330,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 mkdir -p ~/.config/uv && echo "3.12" > ~/.config/uv/.python-version
 ```
 
+> **装完必须能在交互 shell 里真的跑起来。** pnpm 给每个 bin 写一个 shim，脚本入口（`.js`）的
+> shim 在**运行时**挑解释器：WSL2 上如果 WSL 里没有 Linux `node`、而 Windows PATH 又被追加，
+> 它会把脚本交给 `node.exe`，再甩一条 `\\wsl.localhost\...` 的 UNC 路径过去——而 Windows 读不了
+> pnpm store 里的 Linux 软链，于是报 `Cannot find module '\\wsl.localhost\...'`，**那个文件其实
+> 是在的**。原生二进制入口的包没有这条阶梯，所以同一个机器上"一个 CLI 能跑、另一个不能"是常态。
+> 完整机制与检查清单见 [`../pnpm-shim-wsl2-node-path.md`](../pnpm-shim-wsl2-node-path.md)。
+
 > **Python 约定**：系统 `/usr/bin/python3` 严格保留给 OS 包，日常一律 `uv run --python 3.12`。无需也不默认安装 Anaconda/Miniconda，Python 包与虚拟环境全部由 `uv` 统一管理。与 git 用 PPA 就地升级不同，Python 必须走旁路隔离——大量 Ubuntu 组件依赖系统 Python，换掉会连锁炸掉 apt。
 
 #### 版本选择：两个刻意不升的决定
@@ -338,7 +378,7 @@ env -i HOME=$HOME TERM=xterm /usr/bin/zsh -c  'command -v node'   # 【无输出
 完整流程（含隐私邮箱、凭据助手、代理调优、历史脱敏）见 **[`../../git-github/README.md`](../../git-github/README.md)**。最小必要部分：
 
 ```bash
-sudo apt install -y gh          # 或用 cli.github.com 官方源装新版
+sudo apt install -y gh          # Debian/Ubuntu 的 apt 版落后上游 19 个月，要新版见下方说明
 gh auth login                   # 选 GitHub.com -> HTTPS -> Yes -> Login with a web browser
 gh auth setup-git
 
@@ -347,7 +387,21 @@ git config --global user.name  "<昵称>"
 git config --global http.version HTTP/1.1     # 代理环境下规避 GnuTLS 握手失败
 ```
 
+> **`apt install gh` 装到的是 2024 年 3 月的上游版本**（Debian 13 是 2.46.0，Ubuntu 24.04 是 2.45.0），
+> 落后当前上游 80 个版本，`gh skill`、`gh pr checkout --worktree`、`gh pr create --attach` 这些都没有。
+> 换 GitHub 官方源的三步装法、更新与回退命令见
+> [`../../git-github/README.md`](../../git-github/README.md) 第三节第 2.1 小节；
+> 三个发行版的版本对比见 [`../distro-differences.md`](../distro-differences.md) 第六节。
+>
+> **Fedora 用 dnf 自带的就够，不必换源**（2.97.0，只落后 9 个版本）。
+
 浏览器唤不起来时，**先看 [`../../git-github/README.md`](../../git-github/README.md) 第二节第 3 小节「故障排查与已知坑」**，里面有 wslu 在 systemd 下的假错、UNC 警告、绝对路径要求等五条。
+
+**`sudo` 会把代理变量剥掉**：`sudo` 默认启用 `env_reset`，`http_proxy` / `https_proxy` /
+`no_proxy` 全部清空，于是 `sudo apt update`、`sudo curl` 走的是直连，拉海外源就超时。
+要让 sudo 无感继承当前用户的代理，按
+[`../../linux-desktop/README.md`](../../linux-desktop/README.md) 2.8 方案 A 配
+`/etc/sudoers.d/proxy` 白名单（`visudo -cf` 校验语法），别用 `sudo -E` 逐条扛。
 
 ---
 
@@ -494,6 +548,8 @@ wslview "https://example.com"
 
 # 6. 两个 shell 的环境变量一致
 for s in zsh bash; do $s -ic 'echo "'$s': BROWSER=$BROWSER proxy=$http_proxy PNPM_HOME=$PNPM_HOME"'; done
+#    上面这条继承了当前终端的 PATH，盖得住「守卫早于 PATH」这类问题。新终端的真实情况要从干净环境看：
+env -i HOME="$HOME" TERM=xterm PATH=/usr/bin:/bin bash -lic 'echo "BROWSER=$BROWSER"'   # 预期：wslview
 
 # 7. 工具链
 zsh -ic 'node -v; npm -v; pnpm -v; uv --version; git --version; gh --version'
@@ -516,14 +572,20 @@ ls /proc/sys/fs/binfmt_misc/ | grep -q WSLInterop && echo "WSLInterop OK" || ech
 systemctl is-active wsl-binfmt-guard.timer     # 预期 active
 
 # 12. /mnt/wsl 跨发行版共享（多发行版机器）
+#    单发行版机器：fstab 那条 bind 默认注释、守护也不装，下面两条都没有输出，
+#    这是配置使然而非故障。若 findmnt 有输出却没有 timer，说明这份 fstab 是旧版
+#    原件部署的（那时 bind 默认启用），注释掉那行即可。
 systemctl is-active wsl-mount-guard.timer      # 预期 active
 findmnt -no TARGET "/mnt/wsl/$WSL_DISTRO_NAME" # 预期打印该路径
-#    单发行版机器上这行 fstab 可能被刻意注释掉了，那 findmnt 不打印任何东西是
-#    配置使然而非故障——守护 timer 会每个周期空跑一遍并 exit 0。2026-10-17 在
-#    那台只有 Debian 的笔记本上实测如此。
 # 挂载必须落在共享 tmpfs 里面：下面两个 id 要一致，不一致说明挂成了被遮蔽的孤儿
 awk '$5=="/mnt/wsl"{print "tmpfs id="$1}' /proc/self/mountinfo
 awk -v t="/mnt/wsl/$WSL_DISTRO_NAME" '$5==t{print "bind parent="$2}' /proc/self/mountinfo
+
+# 13. pnpm 装的全局 CLI 真的能跑（只验 pnpm 自己说明不了任何事）
+env -i HOME=$HOME TERM=xterm /usr/bin/zsh -ic 'command -v node; <pnpm-global-cli> --version'
+#    env -i 不能省：继承来的 PATH 会让这条成为假阳性。
+#    pnpm -v 正常不能作数——pnpm 是独立二进制，不走 shim 的解释器阶梯。
+#    背景与完整清单：wsl/pnpm-shim-wsl2-node-path.md
 ```
 
 > **第 9 条为什么用 `env -i`**：普通测试会继承当前会话的环境变量，已删除的凭据在重启前仍会显示存在，造成误判。`env -i` 起一个干净环境，才能真正验证文件已清理。

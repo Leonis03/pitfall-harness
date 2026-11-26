@@ -1,0 +1,12 @@
+# linux-desktop/fedora/files/sudoers/proxy
+#
+# Deploy to: /etc/sudoers.d/proxy  (mode 0440)
+#
+# Without this, sudo's env_reset strips http_proxy / https_proxy / all_proxy and
+# every root-owned network command (dnf, git, curl) falls back to a direct
+# connection. Same class of failure as linux-desktop/README.md section 2.8.
+#
+# Validate after installing:
+#   sudo visudo -cf /etc/sudoers.d/proxy
+#   sudo env | grep -i proxy
+Defaults env_keep += "http_proxy https_proxy all_proxy no_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY"

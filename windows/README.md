@@ -7,6 +7,7 @@
 | [`powershell/`](powershell/) | profile 功能文档（canonical：[`profile-features.md`](powershell/profile-features.md)）、中文命令 I/O 与报错语言（[`cjk-command-io.md`](powershell/cjk-command-io.md)）、用 shell 驱动 PowerShell 时自己骗了自己的地方（[`powershell-scripting-pitfalls.md`](powershell/powershell-scripting-pitfalls.md)）、优雅 / 强制关闭 Typora 并丢弃会话；代理环境变量写入脚本（[`files/powershell/set-proxy-env.ps1`](files/powershell/set-proxy-env.ps1)，先探测端口再写） |
 | [`terminal/`](terminal/) | Windows Terminal：启动目录继承、System32 自动回家与 `OSC 9;9` 路径上报；无 Store 的 LTSC / 精简镜像如何侧载 winget 与 Terminal |
 | [`ime-keyboard/`](ime-keyboard/) | 输入法与键盘布局：卸载语言后残留的幽灵键盘布局（含排查）、搜狗首字母漏成英文的排查清单 |
+| [`display-font-fallback-20261117.md`](display-font-fallback-20261117.md) | 英文显示语言下中文 fallback 到日文 / 繁体字体的三层机制（GDI FontLink、家族映射、conhost）与逐层配置；语言标签 SG/CN 被搜狗改写时的注册表直写；「幽灵键盘布局」误判的考证 |
 | [`context-menu/`](context-menu/) | 右键菜单项的排查与精简（含屏蔽 AMD Catalyst 扩展、Open in Terminal / Open in WSL） |
 | [`windows-update/`](windows-update/) | 把功能更新钉在 24H2、保留更新可见性的 `.reg` 做了什么、什么时候用 |
 

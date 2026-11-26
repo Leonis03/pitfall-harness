@@ -23,31 +23,31 @@ arguments: [action, namespace, key]
 
 ## 1. 运行 `miui-settings.sh`
 
-> **路径规范**：技能已安装部署于 `~/.gemini/config/skills/android-miui-settings/` 以及 `/root/vibe-coding-pitfalls-private/agent/skills/android-miui-settings/`。
+> **路径**：下面的命令统一写 `~/.agents/skills/android-miui-settings/`。装在别处也能用，换成实际位置即可：`~/.claude/skills/android-miui-settings/`、`~/.gemini/config/skills/android-miui-settings/`，或相对本 SKILL.md 的路径，三处有一处存在就行。
 
 ### 1.1 私人 DNS (DoT) 快速配置与验证
 Android 的私人 DNS 功能通过 DNS-over-TLS (DoT) 对全系统 DNS 进行加密传输，内置主流服务商别名：
 
 ```bash
 # 查询当前私人 DNS 模式、域名以及 ConnectivityService 实际 TLS 握手状态
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns status
 
 # 一键切换为阿里公共 DoT (dns.alidns.com)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns ali
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns ali
 
 # 一键切换为腾讯 DNSPod DoT (dot.pub)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns dnspod
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns dnspod
 
 # 一键切换为 Cloudflare 或 Google DoT
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns cloudflare
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns google
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns cloudflare
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns google
 
 # 设置自定义 DoT 服务商域名
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns hostname <custom-domain>
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns hostname <custom-domain>
 
 # 恢复为自动模式 (Auto / Opportunistic) 或彻底关闭
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns auto
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dns off
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns auto
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dns off
 ```
 
 ---
@@ -57,16 +57,16 @@ Android 12+ 引入的 PhantomProcessKiller 限制每个应用派生子进程不�
 
 ```bash
 # 查询当前监控状态、上限值及实时 ActivityManager 状态
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh phantom status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh phantom status
 
 # 彻底关闭幽灵进程查杀，并将进程数上限扩展至最大整型 (2147483647)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh phantom disable
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh phantom disable
 
 # 自定义幽灵进程数上限 (例如 512, 1024)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh phantom limit 1024
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh phantom limit 1024
 
 # 恢复系统原生幽灵进程监控
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh phantom enable
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh phantom enable
 ```
 
 ---
@@ -76,17 +76,17 @@ MIUI / HyperOS 在 `DisplayModeDirector` 中内置了专有的最高优先级投
 
 ```bash
 # 查看当前屏幕刷新率配置与 DisplayModeDirector 实时生效投票
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate status
 
 # 锁定全域恒定 120Hz 高刷 (强行关闭打字或静止时的智能动态降频)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 120
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 120
 
 # 切换为 90Hz 或 60Hz 节能模式
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 90
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 60
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 90
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate 60
 
 # 恢复 MIUI 智能动态帧率调节
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate auto
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh refresh-rate auto
 ```
 
 ---
@@ -96,16 +96,16 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh refr
 
 ```bash
 # 查看当前动画缩放倍率
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh animation status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh animation status
 
 # 开启极速动画 (0.5x)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh animation fast
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh animation fast
 
 # 完全关闭动画 (0.0x)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh animation off
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh animation off
 
 # 恢复默认 1.0x
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh animation normal
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh animation normal
 ```
 
 ---
@@ -113,12 +113,12 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh anim
 ### 1.5 小米神隐后台与 Doze 电池白名单
 ```bash
 # 收紧小米 PowerKeeper 权限 (禁止其在后台随意杀死服务)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh powerkeeper restrict
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh powerkeeper status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh powerkeeper restrict
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh powerkeeper status
 
 # 将 Termux 加入 Doze 白名单，防止锁屏休眠断网
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh doze whitelist com.termux
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh doze status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh doze whitelist com.termux
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh doze status
 ```
 
 ---
@@ -128,22 +128,22 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh doze
 
 ```bash
 # 查看当前免打扰 (Zen Mode)、铃声模式与活动通知策略
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dnd status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dnd status
 
 # 开启「仅联系人响铃」免打扰策略 (Priority 优先级模式 + 铃声开 + 媒体音量保底)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dnd contacts-only
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dnd contacts-only
 
 # 开启全免打扰或恢复正常响铃
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dnd on
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh dnd off
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dnd on
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh dnd off
 
 # 检查全部音频流音量 (媒体 STREAM_MUSIC、铃声 STREAM_RING、闹钟 STREAM_ALARM、通知 STREAM_NOTIFICATION)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volume status
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh volume status
 
 # 调节指定音频流音量
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volume media 75
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volume ring 10
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volume alarm 12
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh volume media 75
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh volume ring 10
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh volume alarm 12
 ```
 
 ---
@@ -154,16 +154,16 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh volu
 ```bash
 # AI Coding Agent 性能预设：
 # 解除幽灵进程 (上限设为最大)、强锁 120Hz、开启 0.5x 极速动画、限制 PowerKeeper、加入 Doze 白名单
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh preset performance
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh preset performance
 
 # 均衡预设 (Balanced)：512 进程上限、动态 120Hz、0.5x 动画
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh preset balanced
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh preset balanced
 
 # 省电预设 (Battery)：60Hz、1.0x 动画、128 进程上限
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh preset battery
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh preset battery
 
 # 恢复出厂默认设置 (Stock)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh preset stock
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh preset stock
 ```
 
 ---
@@ -173,19 +173,19 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh pres
 
 ```bash
 # 审计当前宿主前台焦点窗口 (防止在 Termux 窗口误触发软键盘事件)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh input focus
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh input focus
 
 # 点击屏幕坐标 (若 Termux 为前台焦点会自动输出安全告警)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh input tap 500 1000
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh input tap 500 1000
 
 # 滑动手势
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh input swipe 500 1500 500 500 300
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh input swipe 500 1500 500 500 300
 
 # 模拟按键 (26=电源, 3=Home, 4=返回, 187=多任务)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh input key 4
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh input key 4
 
 # 一键截图到 Debian 容器本地路径 (自动处理宿主与容器存储重定向)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh screencap /root/md/screen.png
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh screencap /root/md/screen.png
 ```
 
 ---
@@ -195,15 +195,15 @@ bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh scre
 
 ```bash
 # 全量导出 JSON 快照 (包含设备型号、系统版本及 global/system/secure 三表)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh backup /root/md/settings_backup.json
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh backup /root/md/settings_backup.json
 
 # 预检演练模式 (Dry-Run)，仅打印将执行的变更而不实际写入
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --dry-run
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --dry-run
 
 # 定向回滚子系统
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --dns
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --display
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --animation
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --dns
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --display
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh restore /root/md/settings_backup.json --animation
 ```
 
 ---
@@ -213,17 +213,17 @@ Android 系统设置分为三大独立表：`global`（全局）、`secure`（�
 
 ```bash
 # 读取键值
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh get global private_dns_mode
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh get system screen_off_timeout
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh get global private_dns_mode
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh get system screen_off_timeout
 
 # 写入键值
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh put system screen_off_timeout 600000
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh put system screen_off_timeout 600000
 
 # 删除覆写键值 (恢复系统初始默认)
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh delete global http_proxy
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh delete global http_proxy
 
 # 列出指定表键值并支持正则过滤
-bash ~/.gemini/config/skills/android-miui-settings/scripts/miui-settings.sh list global dns
+bash ~/.agents/skills/android-miui-settings/scripts/miui-settings.sh list global dns
 ```
 
 ---

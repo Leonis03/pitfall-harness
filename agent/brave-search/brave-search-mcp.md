@@ -23,7 +23,7 @@ Claude Code 内置的 `WebSearch` 工具可能**无法使用**，典型原因：
 | Node.js | ≥ 22（推荐 24+） |
 | npm | 随 Node 安装 |
 | Brave API key | 到 https://brave.com/search/api/ 注册获取 |
-| 网络 | 能访问 `api.search.brave.com`（代理环境需额外配置，见[第 4 步](#4-关键配置代理环境)） |
+| 网络 | 能访问 `api.search.brave.com`（代理环境需额外配置，见[第 4 步](#4-关键配置代理环境90-故障的来源)） |
 
 ---
 
@@ -150,7 +150,7 @@ claude mcp add brave-search -s user -e BRAVE_API_KEY=你的key -- npx -y @brave/
 | 现象 | 原因 | 解决 |
 |---|---|---|
 | `claude mcp list` 显示 `Connection closed` | 首次运行 npx 还在下载包，健康检查超时 | 手动 `npx -y @brave/brave-search-mcp-server --help` 预热后重试 |
-| 调用返回 `fetch failed` | 代理环境未配 `NODE_USE_ENV_PROXY=1` | 见[第 4 步](#4-关键配置代理环境) |
+| 调用返回 `fetch failed` | 代理环境未配 `NODE_USE_ENV_PROXY=1` | 见[第 4 步](#4-关键配置代理环境90-故障的来源) |
 | 返回 0 条结果（偶发） | 代理不稳定 / 冷启动 | 重试；或换更稳定的代理 |
 | `Invalid tool name` | 工具名拼写错误 | 用 `claude mcp list` 查看实际工具名 |
 | 找不到 key / 401 | key 填错或已撤销 | 检查 `~/.claude.json` 中 `BRAVE_API_KEY` |

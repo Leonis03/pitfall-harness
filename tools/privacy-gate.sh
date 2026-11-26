@@ -18,6 +18,12 @@
 #   PRIVACY_NAMES="NAME OTHER" bash tools/...   # environment
 #   printf 'NAME\n' > tools/.privacy-names      # gitignored, set up once
 #
+# On top of whichever of those three applies, tools/privacy-names.private is
+# always read when present. It is tracked in the private repo only:
+# publish.sh deletes it from the export, so the published script never sees
+# it. That is how the private repo's own clones and CI check a name with no
+# per-machine setup.
+#
 # The file is the one to use in practice -- argv and env only protect the run
 # you remember to type them on. Matching is case-insensitive, so one entry
 # covers both the Linux and the Windows spelling of the same name; list a
@@ -45,8 +51,9 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
-# .privacy-names holds the names by design; scanning it would fail every run.
-# It is gitignored, so it is never what gets published.
+# .privacy-names and privacy-names.private hold the names by design; scanning
+# them would fail every run. The first is gitignored and the second is deleted
+# by publish.sh, so neither is ever what gets published.
 #
 # In a git worktree .git is a file (a gitdir pointer holding an absolute path),
 # not a directory, so it needs --exclude as well as --exclude-dir.
@@ -61,22 +68,28 @@ cd "$(dirname "$0")/.." || exit 2
 # reaches a public repo and may hold real paths while it is being worked out. It is skipped
 # here for the same reason as tmp/. Credentials still never go in (conventions.md); a draft
 # that graduates into a real directory is redacted and scanned like everything else.
-EXCLUDE=(--exclude-dir=.git --exclude=.git --exclude-dir=node_modules --exclude-dir=tmp --exclude-dir=drafts --exclude=.privacy-names)
+EXCLUDE=(--exclude-dir=.git --exclude=.git --exclude-dir=node_modules --exclude-dir=tmp --exclude-dir=drafts --exclude=.privacy-names --exclude=privacy-names.private)
 fail=0
 
 NAMES_FILE=tools/.privacy-names
+PRIVATE_NAMES_FILE=tools/privacy-names.private
 NAMES=()
+read_names_file() {
+  local line
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%%#*}
+    line=$(printf '%s' "$line" | tr -d '[:space:]')
+    [ -n "$line" ] && NAMES+=("$line")
+  done < "$1"
+}
 if [ "$#" -gt 0 ]; then
   NAMES=("$@")
 elif [ -n "${PRIVACY_NAMES:-}" ]; then
   read -r -a NAMES <<< "$PRIVACY_NAMES"
 elif [ -f "$NAMES_FILE" ]; then
-  while IFS= read -r line || [ -n "$line" ]; do
-    line=${line%%#*}
-    line=$(printf '%s' "$line" | tr -d '[:space:]')
-    [ -n "$line" ] && NAMES+=("$line")
-  done < "$NAMES_FILE"
+  read_names_file "$NAMES_FILE"
 fi
+[ -f "$PRIVATE_NAMES_FILE" ] && read_names_file "$PRIVATE_NAMES_FILE"
 
 # Turn a literal name into an ERE that matches it in any casing: each letter
 # becomes [xX]. Regex metacharacters are escaped first -- a name is user input

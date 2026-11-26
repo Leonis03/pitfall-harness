@@ -1,0 +1,62 @@
+# linux-desktop/files/fcitx5-wayland/fcitx5-config
+#
+# Fcitx5 core configuration.
+# Deploy to:
+#   ~/.config/fcitx5/config
+#
+# Read this file before assuming it is right for the machine you are on.
+#
+#   [Hotkey/TriggerKeys]
+#     0=Control+space      toggle the IM on and off
+#     1=Zenkaku_Hankaku     (Japanese layout key, harmless elsewhere)
+#     2=Hangul              (Korean layout key, harmless elsewhere)
+#
+#   [Hotkey/AltTriggerKeys]
+#     Left empty ON PURPOSE. Fcitx5 binds Shift_L here by default, which
+#     intercepts the key at the framework layer and commits the first
+#     candidate before the input method ever sees it -- the user presses
+#     Shift to commit the raw code and a Chinese character appears instead.
+#     Leaving it empty hands the key back to Rime, where
+#     `ascii_composer/switch_key` decides what to do with it (see
+#     rime_ice.custom.yaml).
+#
+#   [Behavior]
+#     ActiveByDefault=True
+#       Start every new context with the IM already active, instead of
+#       requiring Ctrl+Space in each window. Note that `fcitx5-remote`
+#       then reports 2 (active) instead of 1 (inactive).
+#
+#     PreeditEnabledByDefault=True
+#       Show the in-progress text in the application. Turn this off and the
+#       user sees nothing until a candidate is chosen.
+#
+# The IM group itself lives in a separate file, `fcitx5-profile`; the two are
+# edited independently.
+
+[Hotkey]
+EnumerateWithTriggerKeys=True
+EnumerateForwardKeys=
+EnumerateBackwardKeys=
+EnumerateSkipFirst=False
+
+[Hotkey/TriggerKeys]
+0=Control+space
+1=Zenkaku_Hankaku
+2=Hangul
+
+[Hotkey/AltTriggerKeys]
+
+[Hotkey/EnumerateGroupForwardKeys]
+0=Super+space
+
+[Hotkey/EnumerateGroupBackwardKeys]
+0=Shift+Super+space
+
+[Behavior]
+ActiveByDefault=True
+ShareInputState=No
+PreeditEnabledByDefault=True
+ShowInputMethodInformation=True
+CompactInputMethodInformation=True
+DefaultPageSize=5
+AutoSavePeriod=30

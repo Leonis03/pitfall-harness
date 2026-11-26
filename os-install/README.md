@@ -23,8 +23,9 @@ as a bug.
 
 | File | Contents |
 | :--- | :--- |
-| [`dual-boot-time-sync.md`](dual-boot-time-sync.md) | **The clock contract between a dual-booted Windows and Linux**: the RTC convention, the 8-hour signature, how to diagnose which side misreads the hardware clock, how to choose between automatic correction and deliberate drift, and the fast-startup interaction |
+| [`dual-boot-time-sync.md`](dual-boot-time-sync.md) | **The clock contract between a dual-booted Windows and Linux**: the RTC convention, who writes the RTC on each side, which convention to pick for a fresh Linux install, the 8-hour signature, how to diagnose which side misreads the hardware clock, how to choose between automatic correction and deliberate drift, and the fast-startup interaction |
 | [`files/`](files/) | The read-only probe scripts that report the state of both sides |
+| [`triple-boot-layout.md`](triple-boot-layout.md) | **Two disks, three systems**: where each bootloader lives, why a fallback system on the second disk must boot from that disk, and how to reinstall one Linux without breaking the other two |
 
 ## Conventions in this directory
 

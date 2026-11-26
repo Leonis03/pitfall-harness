@@ -115,11 +115,7 @@ if grep -qi microsoft /proc/version 2>/dev/null; then
   [ -n "$_vscode_bin" ] && _path_append "$_vscode_bin"
   unset _d _p _vscode_bin
 
-  # Default browser for `gh auth login`, xdg-open, etc.
-  # Guarded: without this, removing wslu leaves BROWSER pointing at nothing.
-  if command -v wslview >/dev/null 2>&1; then
-    export BROWSER=wslview
-  fi
+  # BROWSER is set in section 3, after ~/.local/bin is on PATH -- see there.
 fi
 
 # ------------------------------------------------------------------------------
@@ -142,6 +138,22 @@ if [ -d /usr/lib/jvm/default-java ]; then
 fi
 
 export PATH
+
+# Default browser for `gh auth login`, xdg-open, etc. (WSL only)
+#
+# This MUST come after ~/.local/bin is put on PATH above. On a distro without
+# wslu (Debian, Fedora) wslview is the stand-in at ~/.local/bin/wslview, and a
+# fresh login shell does not have that directory on PATH yet. When this guard
+# sat in section 2 it missed the stand-in, so BROWSER stayed unset in every
+# first-level terminal -- while a nested shell, which inherits the PATH, got
+# it. A check run from an already-open terminal therefore passed. Verify from
+# a clean environment instead:
+#   env -i HOME="$HOME" TERM=xterm PATH=/usr/bin:/bin bash -lic 'echo $BROWSER'
+#
+# Guarded: without this, removing wslu leaves BROWSER pointing at nothing.
+if grep -qi microsoft /proc/version 2>/dev/null && command -v wslview >/dev/null 2>&1; then
+  export BROWSER=wslview
+fi
 
 # ------------------------------------------------------------------------------
 # 4. Toolchains
@@ -201,6 +213,14 @@ export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
 #    Background: agent/skills/android-chroot-debian/references/proxy-and-socket-pitfalls.md
 # ------------------------------------------------------------------------------
 export host_ip="${host_ip:-127.0.0.1}"
+
+# Start from a clean slate. A shell inherits proxy variables from its parent
+# and from the desktop session's environment; once the client has stopped,
+# those values point at a dead port. Measured: without this line, stale
+# HTTPS_PROXY / ALL_PROXY survived in both bash and zsh when no port answered,
+# because the "no port" branch below unsets only this file's helper variables.
+# The probe re-exports whatever actually answers.
+unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 
 # Probe the candidate ports and report which proxy protocol each one speaks.
 # One bash does the whole scan -- /dev/tcp for the connect and bash read for
@@ -313,6 +333,14 @@ fi
 unset -f _proxy_scan 2>/dev/null
 unset _proxy_line _proxy_http _proxy_socks
 
+# NO_PROXY is exported either way -- with or without a proxy in use.
+# Host names are written out in full on purpose: a bare "*" is special-cased,
+# but a prefixed wildcard such as "*.local" or "127.*" is NOT, and it silently
+# sends local traffic through the proxy (502 with an empty body -- see
+# tools/python/ section 1 in the same repository).
+export no_proxy="localhost,127.0.0.1,::1,.local"
+export NO_PROXY="$no_proxy"
+
 # ------------------------------------------------------------------------------
 # 6. Editor & terminal
 # ------------------------------------------------------------------------------
@@ -323,6 +351,17 @@ export COLORTERM=truecolor
 # ------------------------------------------------------------------------------
 # 7. Fcitx5 input method
 # ------------------------------------------------------------------------------
+# Exported on every session type, Wayland included. X11 sessions need them.
+# On a Plasma 6 Wayland desktop they made no difference to the browsers once
+# Fcitx 5 was KWin's input method (selected as the virtual keyboard): Firefox
+# typed with and without GTK_IM_MODULE=fcitx, and Chrome typed with no flags.
+# Before that setting, unsetting them -- the advice in Fcitx5's own startup
+# notification -- did not help either. On Plasma Wayland the fix is the
+# virtual-keyboard setting, not these variables; see
+# linux-desktop/wayland-fcitx5-rime.md, root cause 4.
+#
+# XMODIFIERS points X11 and XWayland clients at Fcitx5's XIM server, and the
+# server name is "fcitx", NOT "fcitx5".
 export GTK_IM_MODULE=fcitx
 export QT_IM_MODULE=fcitx
 export XMODIFIERS=@im=fcitx

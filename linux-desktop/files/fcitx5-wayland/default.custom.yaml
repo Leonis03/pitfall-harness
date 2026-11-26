@@ -1,0 +1,56 @@
+# linux-desktop/files/fcitx5-wayland/default.custom.yaml
+#
+# Rime patch for the "default" config of a Fcitx5 Rime installation.
+# Deploy to:
+#   ~/.local/share/fcitx5/rime/default.custom.yaml
+#
+# This file patches `default.yaml`, NOT the active schema. On a rime-ice
+# installation `rime_ice.schema.yaml` has no `extends:` line, so patches that
+# must reach the running schema belong in `rime_ice.custom.yaml` instead --
+# see the sibling file. Patches here DO reach the schema for the standard
+# sections Rime merges in as a base (menu, selector, key_binder, navigator,
+# punctuator, recognizer), but NOT for `ascii_composer`.
+#
+# Read this file before assuming it is right for the machine you are on.
+#
+#   schema_list
+#     Restricts the schema list to one entry. Rime otherwise offers every
+#     schema it finds, and the first one is not necessarily the one you want.
+#
+#   menu/page_size
+#     Candidates per page. The default is 5.
+#
+#   key_binder/bindings/+
+#     Adds two bindings without discarding the existing ones (the `/+` suffix
+#     appends to the list instead of replacing it).
+#
+#     comma / period page through the candidates. Both are free on a Latin
+#     keyboard but are also the punctuation keys, so they only apply while a
+#     composition is active (`when: paging` / `when: has_menu`).
+#
+#   selector/linear/bindings
+#     Rebinds candidate selection. By default the horizontal candidate bar
+#     binds Left and Right to the previous and next candidate, which makes it
+#     impossible to move the caret inside the pinyin string you are typing.
+#     Moving selection to Tab / Shift+Tab releases Left and Right for the
+#     navigator.
+#
+# After changing this file, recompile and verify the BUILT schema, not the
+# source -- the engine loads the compiled output:
+#
+#   rime_deployer --build ~/.local/share/fcitx5/rime /usr/share/rime-data \
+#                 ~/.local/share/fcitx5/rime/build
+#   grep -A 6 'switch_key' ~/.local/share/fcitx5/rime/build/rime_ice.schema.yaml
+#
+# See linux-desktop/wayland-fcitx5-rime.md for the full write-up.
+
+patch:
+  schema_list:
+    - schema: rime_ice
+  "menu/page_size": 9
+  "key_binder/bindings/+":
+    - { when: paging, accept: comma, send: Page_Up }
+    - { when: has_menu, accept: period, send: Page_Down }
+  "selector/linear/bindings":
+    Shift+Tab: previous_candidate
+    Tab: next_candidate

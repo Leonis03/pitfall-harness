@@ -50,7 +50,7 @@
   names from subdirectories as instructions, so an *original* that deploys under one of those
   names gets a different name in the repo: `agent/claude-code/claude-global.md` ->
   `~/.claude/CLAUDE.md`, `agent/antigravity/agents-brave-uv.md` -> `~/.gemini/config/AGENTS.md`.
-- **Every top-level directory except `tmp/` has a `README.md` index.** Where a directory has a `files/`
+- **Every top-level directory except `tmp/` and `.github/` has a `README.md` index.** Where a directory has a `files/`
   subdirectory, `files/` holds deployable originals and everything else is documentation. An
   original used on more than one platform (the bash / zsh config) lives in a platform-neutral
   directory ([`shell/`](shell/)), not under one platform.
@@ -96,7 +96,11 @@
 - **Run `bash tools/privacy-gate.sh` before publishing.** It only covers known shapes; passing
   is not the same as safe -- `wsl/storage/forensics/` is raw forensic output and has to be read by hand.
   The account names are **not in the script** (putting them there would make the script itself
-  the leak); they are read at run time from `tools/.privacy-names`, which is gitignored.
+  the leak); they are read at run time from `tools/.privacy-names`, which is gitignored, and
+  from `tools/privacy-names.private`, which is tracked here but private-only like `drafts/`:
+  `publish.sh` deletes it from the export and refuses to continue if it survives, and the gate
+  does not scan it. Put a name there when every clone and CI should check it; keep it in the
+  gitignored file when it must not sit in the private repo's history either.
 - **Publish with `bash tools/publish.sh`, never a hand-rolled `cp -r`.** This repo is a
   **private primary plus two public snapshots**:
   [`pitfall-harness`](https://github.com/Leonis03/pitfall-harness) gets the whole tree,

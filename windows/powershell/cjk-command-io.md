@@ -120,6 +120,48 @@ Win32 native: The system cannot find the path specified.
 
 ---
 
+### 3.1 宿主不加载 `$PROFILE`：Agent 的工具调用默认仍是 936
+
+同一个 pwsh，交互窗口 `chcp` 是 65001、emoji 正常；Agent 的工具调用里 `[Console]::OutputEncoding`
+是 `gb2312`、`✅` / `😀` 变 `?`，而文件写入和管道给原生程序却都是 UTF-8。原因是 harness 起
+shell 时带了 `-NoProfile`：
+
+```
+pwsh.EXE -NoProfile -NonInteractive -WindowStyle Hidden -Command "..."
+```
+
+`-NoProfile` 跳过全部四个 profile（AllUsers / CurrentUser × AllHosts / CurrentHost），第 0 节
+那四行一行都不执行。同一台机器实测：
+
+| 宿主 | `[Console]::OutEnc` | `chcp` | `$OutputEncoding` |
+| :--- | :--- | :--- | :--- |
+| 交互 pwsh（加载 profile） | `utf-8` | 65001 | `utf-8` |
+| `pwsh -NoProfile` | `gb2312` | 936 | `utf-8` |
+| `powershell.exe -NoProfile` | `gb2312` | 936 | `us-ascii` |
+
+`?` 不是终端显示的问题，是编码器吐出来的：CP936 编码 `"A✅😀中"` 得到
+`41 3F 3F 3F D6 D0`（`中` 正常，✅ 一个 `?`，😀 是代理对、两个 `?`）。
+
+**别用 `chcp` 判断有没有生效。** 这类宿主的 stdout 是管道、没有控制台，`SetConsoleOutputCP`
+静默失败——设完 `[Console]::OutputEncoding` 已经是 `utf-8`，`chcp` 仍报 936，但输出确实对了。
+看输出本身。
+
+处置按覆盖面排序：
+
+1. **单次调用**：赋值必须是**第一条语句**。实测同一进程里先打印几行再赋值无效（emoji 仍是
+   `? ??`），首条赋值有效。
+2. **改 harness 的 shell 启动命令**（能配的话），把编码前缀塞进 `-Command`。精确、可回滚、
+   不碰系统其它程序，是首选。
+3. **系统级 UTF-8**（`ACP` / `OEMCP` = 65001）能覆盖所有进程，包括 `-NoProfile` 的。代价是
+   5.1 的 `Get-Content` / `Set-Content` 默认编码一起变（4.3、4.4 节里 sqlcmd 那类依赖 936 的
+   行为全部错位），老 GBK 程序与 `.bat` 会乱码，且开与回滚各要重启一次。
+
+**一个容易误判的读数**：`[Text.Encoding]::Default` 在 .NET Core 里恒为 `utf-8`，与系统 ACP
+无关。拿它在 pwsh 7 里「验证 ACP」会得出「ACP 是 65001」的错误结论；本机注册表 `ACP=936`，
+5.1 下同一个属性才是 `gb2312`。要读 ACP 就读注册表。
+
+---
+
 ## 四、写文件：行尾与 BOM 两个独立的坑
 
 ### 4.1 行尾——`edit` 类工具会归一化，改行尾只能整文件重写
@@ -234,6 +276,7 @@ try {
 | 检查项 | 命令 | 期望 |
 | :--- | :--- | :--- |
 | profile 已加载 | `$PROFILE` | 指向 `Documents\PowerShell\...` |
+| 宿主是否跳过 profile | `(Get-CimInstance Win32_Process -Filter "ProcessId=$PID").CommandLine` | 含 `-NoProfile` 时下面三条 UTF-8 断言都不成立，见 3.1 |
 | 控制台编码 | `chcp` | `65001` |
 | .NET 编码 | `[Console]::OutputEncoding.CodePage` | `65001` |
 | 管道编码 | `$OutputEncoding.CodePage` | `65001` |
@@ -259,6 +302,8 @@ try {
 4. **给程序文件路径，别给它管道里的中文。** 它自己打开、自己猜。
 5. **同一台机器上不同工具的 BOM 要求相反**，先问消费方是谁。
 6. **「跑完没报错」不算验证。** 按关键词抽查、按字节比对、按长度对账。
+7. **`$PROFILE` 不是万能的。** 带 `-NoProfile` 的宿主（Agent 的工具调用多半如此）跳过全部
+   profile，这类宿主要靠命令内自设或宿主配置，别为了它去改系统 ACP（见 3.1）。
 
 第 6 条的完整版（连同"不要拿真实脚本当一次性测试输入"这个真实事故）见 skill
 `run-sql-file` 的 Notes 一节。

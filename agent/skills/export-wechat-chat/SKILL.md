@@ -57,7 +57,8 @@ To find the currently active account, list `xwechat_files\` and sort by `LastWri
 3. **Extract key and decrypt in one step** (typical wcdb-key-tool command):
    ```powershell
    cd <wcdb-key-tool-dir>
-   python wcdb_key_tool_windows.py extract `
+   # add one --with <package> per dependency the tool's README lists
+   uv run --python 3.12 python wcdb_key_tool_windows.py extract `
      --db-dir "<BaseDir>\xwechat_files\<wxid_xxx>\db_storage" `
      --output "keys_<wxid_xxx>.json" `
      --decrypt
@@ -94,7 +95,7 @@ Key facts:
 - **The version-bypass trap.** WeChat 3.9.12.x is rejected server-side ("version too low").
   `login_wechat.py`-style scripts patch the version number in memory. This is a fragile,
   version-specific hack -- some accounts are server-side banned and cannot be patched
-  around. The user already knows this; only remind them if they ask why a 3.x login fails.
+  around. Bring this up only when the user asks why a 3.x login fails.
 - **Migration.** WeChat 4.x auto-migrates 3.x history on first login (converts MSG*.db into
   WCDB and writes into `message\`). So for the same account, the WeChat 4 plain DB already
   contains 3.x history -- you do not need to decrypt both separately. Verify by checking
@@ -138,7 +139,7 @@ After any export, confirm all of these before reporting success:
 - [ ] Contact / group info: auxiliary DBs (profile, group member) decrypt and are queryable.
 
 Keep verification scripts **source-ASCII** -- build CJK keywords from code points
-(`"\u4f60\u597d"` not `"你好"`) -- so the script file's own encoding cannot
+(write `"\u4f60\u597d"`, not the literal characters it spells) -- so the script file's own encoding cannot
 silently turn keyword matches into zero hits. Write results to a file as well as
 stdout, so the console encoding cannot be the single point of failure.
 
@@ -146,12 +147,14 @@ stdout, so the console encoding cannot be the single point of failure.
 
 Mention briefly if the user asks "is this legal" or "is this allowed":
 
-- Backing up your own chat data on your own device is personal data access,
-  consistent with PRC Personal Information Protection Law article 45.
-- The technique (read-only memory scanning) is similar to what antivirus / memory
-  cleaners do -- much lower detection risk than code injection.
-- The Tencent EULA prohibits reverse engineering / memory access. Risk is account
-  restriction, not legal action.
+- This skill only covers the user's own chat data on their own device. Do not cite
+  PRC Personal Information Protection Law article 45 as permission: it gives a person
+  the right to access and copy their data *from the handler* (that is, to ask Tencent),
+  and says nothing about decrypting a local copy.
+- What the technique does: it reads the process's memory. It writes nothing to the
+  process, injects no code and patches no file.
+- Tencent's terms of service prohibit reverse engineering. What Tencent does about it
+  is not something this skill can predict -- say so instead of promising an outcome.
 - **Do not distribute decrypted DBs or keys.** They contain other people's
   personal info. Keep them local.
 

@@ -110,9 +110,21 @@ def clean_inline_text(text):
     # Fix repeated math dollar spaces: $ S_i $ -> $S_i$
     text = re.sub(r'\$\s+([^\$]+?)\s+\$', r'$\1$', text)
     text = text.replace('$ $', ' ').replace('$$', '$')
-    # Merge adjacent bold spans: **A** **B** -> **A B**, **A****B** -> **AB**
+    # Merge adjacent bold spans: **A** **B** -> **A B**, **A****B** -> **AB**.
+    # Word splits one bold sentence across several runs, so the whitespace
+    # between wrappers is a separator added by the parser, not source text.
+    # Keep a joining space only when two Latin/digit words would otherwise be
+    # glued together ("SQL" + "Server"). CJK boundaries need none; the
+    # CJK-Western spacing pass below re-inserts one where typography requires.
+    def join_bold(m):
+        left, right = m.group(1).strip(), m.group(2).strip()
+        needs_space = bool(left and right
+                           and left[-1].isascii() and left[-1].isalnum()
+                           and right[0].isascii() and right[0].isalnum())
+        return f"**{left}{' ' if needs_space else ''}{right}**"
+
     while re.search(r'\*\*(.*?)\*\*\s*\*\*(.*?)\*\*', text):
-        text = re.sub(r'\*\*(.*?)\*\*\s*\*\*(.*?)\*\*', lambda m: f"**{m.group(1).strip()} {m.group(2).strip()}**", text)
+        text = re.sub(r'\*\*(.*?)\*\*\s*\*\*(.*?)\*\*', join_bold, text)
     while re.search(r'\*\*(.*?)\*\*\*\*(.*?)\*\*', text):
         text = re.sub(r'\*\*(.*?)\*\*\*\*(.*?)\*\*', lambda m: f"**{m.group(1)}{m.group(2)}**", text)
     text = text.replace('****', '')
@@ -449,61 +461,67 @@ def convert_docx_to_markdown(docx_path, output_md_path, media_dir=None, formula_
 
             # Prepend numbering prefix if available
             if prefix and not clean_txt.startswith(prefix):
-                sep = "" if prefix.endswith("）") else " "
+                sep = "" if prefix.endswith(("）", "、")) else " "
                 clean_txt = f"{prefix}{sep}{clean_txt}"
+
+            # Bold wrappers are formatting, not text. Heading detection must
+            # work on the stripped form, otherwise "**一、实验目的**" stays a
+            # bold paragraph while "四、实验内容" (numbering prefix) is promoted,
+            # producing an inconsistent outline.
+            guard_txt = clean_txt.replace('**', '').strip()
 
             # Heading candidate validation guard
             is_heading_candidate = (
-                len(clean_txt) <= 45
-                and not clean_txt.endswith("。")
-                and not clean_txt.endswith("：")
-                and not clean_txt.endswith(":")
-                and not any(clean_txt.endswith(x) for x in ["如下", "所示", "如下所示", "如下表", "如下图"])
+                len(guard_txt) <= 45
+                and not guard_txt.endswith("。")
+                and not guard_txt.endswith("：")
+                and not guard_txt.endswith(":")
+                and not any(guard_txt.endswith(x) for x in ["如下", "所示", "如下所示", "如下表", "如下图"])
             )
 
             # Document Title
             is_first_block = (len(raw_blocks) == 0)
-            if (style in ("Heading 1", "Title") or is_first_block) and len(clean_txt) <= 40 and not clean_txt.endswith(("。", "：", ":")) and not re.match(r'^[一二三四五六七八九十\d]', clean_txt):
-                raw_blocks.append(("h1", f"# {clean_txt.replace('**', '').strip()}\n\n"))
+            if (style in ("Heading 1", "Title") or is_first_block) and len(guard_txt) <= 40 and not guard_txt.endswith(("。", "：", ":")) and not re.match(r'^[一二三四五六七八九十\d]', guard_txt):
+                raw_blocks.append(("h1", f"# {guard_txt}\n\n"))
                 continue
             # Abstract
-            if clean_txt == "摘要" and style == "摘要":
+            if guard_txt == "摘要" and style == "摘要":
                 raw_blocks.append(("h2", "## 摘要\n\n"))
                 continue
             # Level 1 section (Chinese Counting: 一、, 二、, etc.)
-            if re.match(r'^[一二三四五六七八九十]+、', clean_txt) and is_heading_candidate:
-                raw_blocks.append(("h2", f"## {clean_txt.replace('**', '').strip()}\n\n"))
+            if re.match(r'^[一二三四五六七八九十]+、', guard_txt) and is_heading_candidate:
+                raw_blocks.append(("h2", f"## {guard_txt}\n\n"))
                 continue
             # Common section titles (e.g. 实验目标, 实验内容, 实验步骤, etc.)
-            clean_title = clean_txt.replace('**', '').rstrip('：: ').strip()
+            clean_title = guard_txt.rstrip('：: ').strip()
             SECTION_KEYWORDS = (
                 "实验目标", "实验目的", "实验内容", "实验步骤", "实验要求",
                 "实验原理", "实验环境", "实验仪器", "实验器材", "实验结果",
                 "实验总结", "实验报告", "实验思考", "思考题", "操作步骤",
                 "注意事项", "背景介绍", "参考文献", "致谢"
             )
-            if (clean_title in SECTION_KEYWORDS or any(clean_title == kw for kw in SECTION_KEYWORDS)) and len(clean_title) <= 25 and not clean_txt.endswith("。"):
+            if (clean_title in SECTION_KEYWORDS or any(clean_title == kw for kw in SECTION_KEYWORDS)) and len(clean_title) <= 25 and not guard_txt.endswith("。"):
                 raw_blocks.append(("h2", f"## {clean_title}\n\n"))
                 continue
             # Subsection 1.1, 5.1, etc.
-            if (style == "1.1" or re.match(r'^\d+\.\d+\s+', clean_txt)) and is_heading_candidate:
-                raw_blocks.append(("h3", f"### {clean_txt.replace('**', '').strip()}\n\n"))
+            if (style == "1.1" or re.match(r'^\d+\.\d+\s+', guard_txt)) and is_heading_candidate:
+                raw_blocks.append(("h3", f"### {guard_txt}\n\n"))
                 continue
             # Subsubsection 5.1.1, etc.
-            if (style == "5.1.1" or re.match(r'^\d+\.\d+\.\d+\s+', clean_txt)) and is_heading_candidate:
-                raw_blocks.append(("h4", f"#### {clean_txt.replace('**', '').strip()}\n\n"))
+            if (style == "5.1.1" or re.match(r'^\d+\.\d+\.\d+\s+', guard_txt)) and is_heading_candidate:
+                raw_blocks.append(("h4", f"#### {guard_txt}\n\n"))
                 continue
             # Chinese numeral sub-items starting with （一）, （二）, etc.
-            if re.match(r'^[（\(][一二三四五六七八九十]+[）\)]', clean_txt) and is_heading_candidate:
-                raw_blocks.append(("h3", f"### {clean_txt.replace('**', '').strip()}\n\n"))
+            if re.match(r'^[（\(][一二三四五六七八九十]+[）\)]', guard_txt) and is_heading_candidate:
+                raw_blocks.append(("h3", f"### {guard_txt}\n\n"))
                 continue
             # Sub-items starting with （1）, （2）, etc. only if style is explicitly a Heading style
             if style in ("Heading 4", "4") and is_heading_candidate:
-                raw_blocks.append(("h4", f"#### {clean_txt.replace('**', '').strip()}\n\n"))
+                raw_blocks.append(("h4", f"#### {guard_txt}\n\n"))
                 continue
             # Captions
-            if style == "图注" or (clean_txt.startswith("图") and any(c.isdigit() for c in clean_txt[:8]) and len(clean_txt) < 120):
-                raw_blocks.append(("cap", f"**{clean_txt}**\n\n"))
+            if style == "图注" or (guard_txt.startswith("图") and any(c.isdigit() for c in guard_txt[:8]) and len(guard_txt) < 120):
+                raw_blocks.append(("cap", f"**{guard_txt}**\n\n"))
                 continue
 
             raw_blocks.append(("p", f"{clean_txt}\n\n"))

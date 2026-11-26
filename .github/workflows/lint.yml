@@ -1,0 +1,42 @@
+# Run the repo's own gates on every PR and on pushes to main.
+#
+# tools/lint.sh       the AGENTS.md rules that fail silently (names, LF, ASCII,
+#                     skill frontmatter, links, bilingual pairs, mirrored copies)
+# tools/privacy-gate.sh
+#                     the known redaction shapes. The literal-name check runs
+#                     only if the PRIVACY_NAMES secret is set; without it the
+#                     gate says so and still exits 0 -- the same degraded mode
+#                     as a fresh clone (tools/README.md).
+#
+# Both scripts run the same way locally; CI only makes them hard to forget.
+
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5   # v4 runs on the deprecated Node 20
+        with:
+          fetch-depth: 0   # --base needs the merge base with the target branch
+
+      - name: tools/lint.sh
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bash tools/lint.sh --base "origin/${{ github.base_ref }}"
+          else
+            bash tools/lint.sh
+          fi
+
+      - name: tools/privacy-gate.sh
+        env:
+          PRIVACY_NAMES: ${{ secrets.PRIVACY_NAMES }}
+        run: bash tools/privacy-gate.sh

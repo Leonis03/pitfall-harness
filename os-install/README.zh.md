@@ -20,8 +20,9 @@
 
 | 文件 | 内容 |
 | :--- | :--- |
-| [`dual-boot-time-sync.md`](dual-boot-time-sync.zh.md) | **双系统 Windows 与 Linux 之间的时钟契约**：RTC 约定、8 小时偏差的特征、如何判断是哪一边读错了硬件时钟、自动校正与有意漂移之间怎么选，以及与快速启动的相互作用 |
+| [`dual-boot-time-sync.md`](dual-boot-time-sync.zh.md) | **双系统 Windows 与 Linux 之间的时钟契约**：RTC 约定、两边各由谁写 RTC、新装 Linux 时选哪种约定、8 小时偏差的特征、如何判断是哪一边读错了硬件时钟、自动校正与有意漂移之间怎么选，以及与快速启动的相互作用 |
 | [`files/`](files/README.zh.md) | 只读探针脚本，报告两侧的状态 |
+| [`triple-boot-layout.md`](triple-boot-layout.zh.md) | **两块盘、三个系统**：每个系统的引导放在哪、第二块盘上的后备系统为什么必须从那块盘启动、怎样重装其中一个 Linux 而不弄坏另外两个 |
 
 ## 本目录的约定
 

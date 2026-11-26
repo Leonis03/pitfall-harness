@@ -2,6 +2,8 @@
 
 本文档记录在原生物理机 Linux 桌面系统（以 **Linux Mint 22 / Ubuntu 24.04 noble 底座** 为例）上，复刻部署本仓库开发环境、四层 Shell 分层、开发工具链及 AI Agent 基础设施时的关键配置细节与踩坑取证结论。
 
+> **另一台机器**：本目录记录的是 **Linux Mint 22 / Cinnamon / X11**。**Fedora 44 / KDE Plasma / Wayland** 那台机器的执行者几乎全换了（dnf5 / Dolphin / Konsole / wl-clipboard，桌面代理还劈成了两半），单独记在 [`fedora/`](fedora/) 里，其 README 有中英双份。
+
 ---
 
 ## 零、物理机 Linux 桌面与 WSL2 的环境共性与差异
@@ -50,7 +52,7 @@
 - **Vibe Coding 个人开发机直通放行策略（可选）**：
   - pnpm 11/12 默认开启严格的供应链安全防御：拦截未审批的构建脚本（`pnpm approve-builds` 交互弹窗），并强制执行 `minimumReleaseAge: 1440`（发布未满 24 小时的新版本禁止解析）。
   - 若为**个人开发电脑、仅用于敏捷 Vibe Coding / AI Agent 工具链迭代**，无需企业级冷冻防御，可开启全局直通策略，消除弹窗中断并即刻安装最新发布版：
-    在 `~/.config/pnpm/config.yaml` 与 `~/.npmrc` 中配置：
+    在 `~/.config/pnpm/config.yaml` 中配置（**不要**再写进 `~/.npmrc`，原因见 2.16 节方法二）：
     ```yaml
     dangerouslyAllowAllBuilds: true
     minimumReleaseAge: 0
@@ -75,6 +77,7 @@
 - **终端等宽字体**：终端仿真器（Ghostty / GNOME Terminal）统一采用半角全角严格 1:2 等宽对齐的 **Sarasa Term SC**（更纱黑体终端版），彻底解决制表符与表格线错位。
 - **独立打包与原生应用适配**：对 WPS Office（独立打包 Qt5）与微信桌面版（Chromium/CEF）提供启动包装器，强制透传输入法环境变量。
 - **专题指南**：完整配置复刻步骤与 8 大输入法踩坑详见独立专题文档 [**`gui-and-ime.md`**](gui-and-ime.md)。
+- **Wayland 原生路线**：在 **KDE Plasma 6 + Wayland** 会话下，**原生 Wayland 应用（Chrome / Firefox）可能拿不到输入法**，而终端、Dolphin、Plasma 搜索框照常可用 —— 分裂点见独立文档 [**`wayland-fcitx5-rime.md`](wayland-fcitx5-rime.md)（[中文版](wayland-fcitx5-rime.zh.md)）**：浏览器打不了字的原因是 **Fcitx5 不是 KWin 的输入法**（在系统设置 -> 键盘 -> 虚拟键盘里选中 Fcitx 5 即可，与 `GTK_IM_MODULE` 设不设无关），另外还有 Fedora 的 `imsettings` 语言代码闸门、`default.custom.yaml` 补丁到不了生效方案两个成因，以及取证手法。剪贴板与按键自动化在 Wayland 上还剩什么能做，见 [`wayland-clipboard-automation.md`](wayland-clipboard-automation.md)（[中文版](wayland-clipboard-automation.zh.md)）。
 
 ### 6. Linux 桌面高频生产力与 Windows 习惯对齐工具链
 针对 Windows 用户初入 Linux Mint（Cinnamon 桌面）的高频交互对标方案：
@@ -271,6 +274,12 @@ sudo apt-get install -y xclip xsel wl-clipboard
 - 安装 `wl-clipboard`，使切换到 Wayland 会话后剪贴板命令仍可用。
 - **装了 `wl-clipboard` 不会在 X11 下顶掉 `xclip`**：读文字的命令链是「试 `wl-paste` → 试 `xclip` → 试 `xsel`，谁退出码为 0 用谁」，而没有 Wayland 会话时 `wl-paste` 直接非 0 退出，自动落到 `xclip`。
 - 若 `apt install` 报 dpkg 锁被占用，见第 2.21 节。
+- **WSL2（WSLg）上是同一个症状、同一副药。** 本节通篇按"原生桌面"写，但 WSLg 同时提供
+  X server（`DISPLAY=:0`）和 Wayland 合成器（`WAYLAND_DISPLAY=wayland-0`），上面那三个包
+  在 WSL 里照样装、照样管用——区别只是剪贴板内容由宿主 Windows 持有，WSLg 负责桥接。
+  2026-10-25 实测（Debian 13 / WSL 3.0.3.0 / WSLg）：`printf 'x' | xclip -selection clipboard`
+  与 `wl-copy` 都能写入，并读回宿主剪贴板的内容；下面的验证命令一字不用改。
+  **所以在 WSL 里看到"Ctrl+V 没反应"时，先装这三个包，再去怀疑别处。**
 
 > **[!IMPORTANT] 进程生命周期陷阱（仅限 Go 系 CLI）**：
 > 如果 CLI Agent（如 `agy`）在执行 `apt install` 之前就已经在终端中运行，由于 Go 语言底层剪贴板库（如 `atotto/clipboard`）在进程引导的 `init()` 阶段仅探测一次 `exec.LookPath` 并固化在进程内存中，后装的命令无法被当前运行中的进程动态感知，调用 `/copy` 依然会报无可用剪贴板。**必须退出当前会话并重新启动 CLI（例如重启 `agy` 后通过 `/resume` 恢复）**，新进程启动后即可正常访问剪贴板。
@@ -745,12 +754,13 @@ export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
      dangerouslyAllowAllBuilds: true
      minimumReleaseAge: 0
      ```
-  2. 在 `~/.npmrc` 中同步固化（兼顾读取 npm 格式工具链）：
+  2. 在 `~/.npmrc` 中**只**写镜像源，不要再写这两个键：
      ```ini
      registry=https://registry.npmmirror.com/
-     dangerously-allow-all-builds=true
-     minimum-release-age=0
      ```
+     > [!WARNING]
+     > 早期版本在这里建议「把两个键同步固化到 `~/.npmrc`，兼顾读取 npm 格式工具链」。**在 pnpm 12 上这是无效冗余**（2026-10-24 实测）：pnpm 12 只从 `~/.config/pnpm/config.yaml` 读取这两个键——把该文件移走后，`pnpm config get` 对两项均返回 `undefined`，尽管 `.npmrc` 里还留着它们；而 npm 11 并不认识这两个键，会在**每一条** npm 命令上打印 `npm warn Unknown user config "dangerously-allow-all-builds". This will stop working in the next major version of npm.`。
+     > 完整取证见 [`fedora/README.md`](fedora/README.md) 4.2 节。
 
 * **单项目 / Monorepo 级放行**（仅在特定工程需要时）：
   在项目根目录的 `pnpm-workspace.yaml` 中配置：
@@ -904,6 +914,29 @@ shell = /usr/bin/zsh
 
 它还**会报行号**，所以配置文件里加注释、保留可读的说明，不影响校验。
 
+#### 校验器自己也有一个坑：`--config-file` 必须用 `=` 粘住
+
+要校验**默认位置以外**的文件时，路径要写成 `--config-file=<path>`：
+
+```bash
+ghostty +validate-config --config-file=/tmp/check.conf   # 正常，会按行号报错
+ghostty +validate-config --config-file /tmp/check.conf     # 退出码 1，且一个字都不说
+```
+
+空格形式**对任何文件都退出 1 且完全静默**——合法的配置也这样。所以那里看到的
+「静默的退出码 1」意思是「这个 flag 没被解析」，不是「配置有问题」。
+
+而且退出码 1 本身也不专属于错误：一个**空文件**同样退出 1（不存在的路径也是）。
+退出码 1 有三种含义，只有配合输出才能区分：
+
+| 退出码 | 输出 | 含义 |
+|:---|:---|:---|
+| 0 | 无 | 通过 |
+| 1 | `文件:行号:键名: unknown field` | 真的有错 |
+| 1 | 无 | flag 写错了，或文件是空的/不存在 |
+
+（默认位置那个文件不存在时是 0。）
+
 #### 为什么值得记
 
 这是一个通用失败类别：**配置被静默忽略**。验证它的通用手法是
@@ -913,6 +946,10 @@ shell = /usr/bin/zsh
 - 不报 → 这个校验器根本不检查，"通过"是空的。
 
 这个手法对任何"配置文件静默失效"的场景都适用，不限于 Ghostty。
+
+同一个坑还有第二层：**校验器本身也要用这个手法验一次**。把 flag 写成错误的形式，
+它立刻变成一个"永远失败、一句话不说"的检查器——这比校验器完全坏掉更难发现，
+因为它至少还会给你一个非零退出码。
 
 ---
 

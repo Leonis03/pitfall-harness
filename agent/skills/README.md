@@ -1,6 +1,6 @@
 # Skills
 
-25 个 skill，同时供 Claude Code（`~/.claude/skills/`）与 Antigravity（`~/.gemini/config/skills/`）使用，也可以装在 `~/.agents/skills/`。
+27 个 skill，同时供 Claude Code（`~/.claude/skills/`）与 Antigravity（`~/.gemini/config/skills/`）使用，也可以装在 `~/.agents/skills/`。
 两边装的集合不同（见下表），但凡是两边都有的，内容保持一致。
 
 ## 部署与核对：不能直接 cp
@@ -99,7 +99,7 @@ WSL 的 Debian 里有 `rsync`（`/usr/bin/rsync`），在 WSL 里跑脚本是正
 | `termux-debian-external-drive` | | | | ✅ | **only if** Android（root + Termux） | vold、`/mnt/media_rw`、`nsenter -t 1` |
 | `android-miui-settings` | | | | ✅ | **only if** Android（root + Termux） | 穿透 Android 宿主 Mount Namespace (`nsenter -t 1 -m`) 调取 `settings` 与 DoT 私人 DNS |
 | `honor-linuxlab` | | ✅ | ✅ | ✅ | **only if** 手边有荣耀平板 | 目标是平板里的 PRoot 容器；命令从电脑端用 `adb shell` 注入 |
-| `video-to-md` | ✅ | ✅ | ✅ | | **only if** Antigravity | 视频靠 agy 的 `view_file` 读；Claude Code 没有等价工具，所以只装 `.gemini` |
+| `video-to-md` | ✅ | ✅ | ✅ | | **only if** Antigravity | 视频靠 agy 的 `read_file` 读；Claude Code 没有等价工具，所以只装 `.gemini` |
 | `linux-cjk-font` | | ✅ | ✅ | | **if** WSL / Linux | WSL 先找 `/mnt/c/Users/*/.../Fonts`；Linux 退回 `/usr/share/fonts`，要装 `fonts-noto-cjk` 或文泉驿 |
 | `linux-disk-cleanup-backup` | | ✅ | ✅ | | **if** WSL / Linux | 清理脚本是 bash + `du`/`find`/`dpkg-query`/`rpm`，只读且跨发行版；三种模式（日常维护 / 归档式清理 / 备份到移动硬盘）。备份实测的是 WSL → NTFS（drvfs 需 `metadata`），原生 Linux 那份还是骨架 |
 | `antigravity-cli` | | ✅ | ✅ | | **if** WSL / Linux（需装 agy） | 包装脚本是 bash；在 WSL 上实测（agy 1.2.11），Linux 上 agy 是原生二进制 |
@@ -109,7 +109,8 @@ WSL 的 Debian 里有 `rsync`（`/usr/bin/rsync`），在 WSL 里跑脚本是正
 | `hf-cn-download` | | ✅ | ✅ | | **if** WSL / Linux | 配方是 bash + `env -u` 剥代理；针对桌面代理开着时从 hf-mirror 这类境内可达镜像站下模型 |
 | `docx-to-md` · `pdf-to-md` | | ✅ | ✅ | | **if** WSL / Linux | `uv run` 跑 Python 脚本 |
 | `download-bilibili` | | ✅ | ✅ | | **if** WSL / Linux | BBDown + ffmpeg，命令按 bash 写 |
-| `inspect-session` · `trim-branch` | | ✅ | ✅ | | **if** WSL / Linux | 读 `~/.claude/projects` 下的会话 JSONL，Python 脚本 |
+| `inspect-session` | | ✅ | ✅ | | **if** WSL / Linux | 读四种会话 JSONL：Claude Code、Antigravity、MiniMax Code、CodeBuddy CLI；Python 脚本 |
+| `trim-branch` | | ✅ | ✅ | | **if** WSL / Linux | 裁 Claude Code 的 `parentUuid` DAG 分叉，Python 脚本 |
 | `shuorenhua` | ✅ | ✅ | ✅ | ✅ | 任意平台 | 纯文字编辑，不跑命令 |
 | `find-skills` | ✅ | ✅ | ✅ | ✅ | 任意平台（需 Node） | 只调用 `npx skills` |
 | `github-coauthor-scrub` | | ✅ | ✅ | | **if** WSL / Linux（需 git、perl、`gh`） | bash 脚本；`refresh`、`verify` 走 GitHub API，要 `gh` 已登录 |
@@ -135,11 +136,14 @@ WSL 的 Debian 里有 `rsync`（`/usr/bin/rsync`），在 WSL 里跑脚本是正
 | `github-coauthor-scrub` | — | — | ✅ | ✅ |
 | `hf-cn-download` | — | — | — | — |
 | `run-sql-file` | — | — | — | — |
+| `export-wechat-chat` · `export-qq-chat` | — | — | — | — |
 | `skill-creator` | — | — | —（插件已提供） | ✅ |
 
 - Windows 机是第三个部署目标，`.agents` / `.claude` / `.gemini` 三个目录都还没建，
   所以上表它在每一栏都是 `—`。`run-sql-file` 是这台机器上的第一个 skill，
   但它要 SQL Server 实例才用得上，本机没装，属于「已入库、未部署、暂不可用」。
+  `export-wechat-chat` / `export-qq-chat` 同样 **only if** Windows（要在 Windows 上读微信 / QQ
+  进程的内存），表里四栏都是 `—`；以后要用，就装到 Windows 机上。
 
 - `linux-disk-cleanup-backup` 是新入库的，四栏都是 `—`：清理脚本只用发行版自带的 `du` / `find` /
   `dpkg-query` / `rpm`，WSL 与原生 Linux 都用得上，但装不装由各台机器自己决定——
@@ -150,7 +154,7 @@ WSL 的 Debian 里有 `rsync`（`/usr/bin/rsync`），在 WSL 里跑脚本是正
   上层文档里的 `env -u` 配方无害但用不上。要装的话按下面的方式手动建目录再 deploy。
 
 - Linux 桌面两栏是 2026-09-28 按上面的规则装的：Android、WSL 专属的都不装；`linux-cjk-font`（原名
-  `wsl-cjk-font`）在原生 Linux 上也能用，但这台机器用不上，没装；`video-to-md` 不进 `.claude`，因为读视频靠的是 agy 的 `view_file`。
+  `wsl-cjk-font`）在原生 Linux 上也能用，但这台机器用不上，没装；`video-to-md` 不进 `.claude`，因为读视频靠的是 agy 的 `read_file`。
 - WSL 机两栏是此前的记录，那台机器上的实际安装以它自己的 `sync-skills.sh` 核对结果为准。
 - Linux 桌面两边还各有一个仓库里没有的 `local-torch-cuda`（本机 GPU 专用），`sync-skills.sh` 不管它。
 

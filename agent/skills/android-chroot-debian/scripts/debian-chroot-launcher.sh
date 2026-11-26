@@ -12,14 +12,23 @@
 
 set -Eeuo pipefail
 
-ROOT="${DEBIAN_ROOT:-$HOME/debian-trixie-minbase-install}"
+TERMUX_PREFIX="/data/data/com.termux/files"
+TERMUX_HOME="$TERMUX_PREFIX/home"
+
+if [[ -n "${DEBIAN_ROOT:-}" ]]; then
+    ROOT="$DEBIAN_ROOT"
+elif [[ "${HOME:-}" != "/" && -n "${HOME:-}" && -d "$HOME/debian-trixie-minbase-install" ]]; then
+    ROOT="$HOME/debian-trixie-minbase-install"
+else
+    ROOT="$TERMUX_HOME/debian-trixie-minbase-install"
+fi
 
 # If not already running as root inside private namespace, elevate via su and unshare -m
 if [[ "${1:-}" != "--root" ]]; then
     ROOT_SCRIPT="${BASH_SOURCE[0]}"
-    [[ -x "$ROOT_SCRIPT" ]] || ROOT_SCRIPT="$HOME/.local/bin/debian"
+    [[ -x "$ROOT_SCRIPT" ]] || ROOT_SCRIPT="$TERMUX_HOME/.local/bin/debian"
     ESCAPED_ARGS=$(printf '%q ' "$@")
-    exec /data/data/com.termux/files/usr/bin/su -c "/system/bin/unshare -m '$ROOT_SCRIPT' --root $ESCAPED_ARGS"
+    exec /data/data/com.termux/files/usr/bin/su -c "DEBIAN_ROOT='$ROOT' /system/bin/unshare -m '$ROOT_SCRIPT' --root $ESCAPED_ARGS"
 fi
 shift
 MODE="${1:-}"
@@ -87,15 +96,22 @@ if [[ "$MODE" == "--check" ]]; then
 elif [[ "$MODE" == "--exec" || "$MODE" == "-c" ]]; then
     shift
     exec /system/bin/chroot "$ROOT" /usr/bin/env -i \
+        -C /root \
         HOME=/root \
         PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
         TERM="${TERM:-xterm-256color}" \
         /bin/bash -c "$*"
 else
     printf 'Entering Debian as root; Android host filesystem is available at /android.\n'
+    SHELL_BIN="/bin/bash"
+    if [[ -x "$ROOT/usr/bin/zsh" ]]; then
+        SHELL_BIN="/usr/bin/zsh"
+    fi
     exec /system/bin/chroot "$ROOT" /usr/bin/env -i \
+        -C /root \
         HOME=/root \
+        SHELL="$SHELL_BIN" \
         PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
         TERM="${TERM:-xterm-256color}" \
-        /bin/bash -l
+        "$SHELL_BIN" -l
 fi

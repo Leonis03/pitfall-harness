@@ -13,7 +13,7 @@
 
 更难判的是**错误长相**：本机端口没开时，代理返回一个 **HTTP 502 空体**。看起来像"请求失败"，实际是"根本没连到你以为的那个服务"。
 
-### 实测（CPython 3.12.14，2026-09-19；3.12.15 上复测 2026-10-17，结论不变，见[第 5 节](#5-windows-上的-uv--python-312清华源只管-pypi管不了解释器)）
+### 实测（CPython 3.12.14，2026-09-19；3.12.15 上复测 2026-10-17，结论不变，见[第 6 节](#6-windows-上的-uv--python-312清华源只管-pypi管不了解释器)）
 
 ```python
 from urllib.request import proxy_bypass_environment as pbe

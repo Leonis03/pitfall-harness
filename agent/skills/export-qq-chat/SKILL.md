@@ -64,8 +64,11 @@ uv run --python 3.12 --with sqlcipher3-wheels --with pycryptodome --with zstanda
 $j = Get-Content work_<qq>\ntqq_key_scan.json -Raw -Encoding UTF8 | ConvertFrom-Json
 $uniq = $j.all_hits | Sort-Object salt_hex, key_hex -Unique |
   ForEach-Object { [PSCustomObject]@{kind=$_.kind; key_hex=$_.key_hex; salt_hex=$_.salt_hex; pid=$_.pid} }
-@{ all_nt_db_keys = $uniq } | ConvertTo-Json -Depth 4 |
-  Out-File work_<qq>\ntqq_db_key.json -Encoding utf8NoBOM
+# No BOM, on Windows PowerShell 5.1 as well as 7 (5.1 has no -Encoding utf8NoBOM).
+# Full path: .NET resolves a relative one against the process directory, not $PWD.
+$out = Join-Path $PWD 'work_<qq>\ntqq_db_key.json'
+[IO.File]::WriteAllText($out, (@{ all_nt_db_keys = $uniq } | ConvertTo-Json -Depth 4),
+  [Text.UTF8Encoding]::new($false))
 
 uv run --python 3.12 --with sqlcipher3-wheels --with pycryptodome --with zstandard `
   python scripts/ntqq_aux_decrypt.py --keys-json work_<qq>\ntqq_db_key.json
@@ -152,11 +155,13 @@ key after signing in again. So:
 
 ## Legal / safety note
 
-Same pattern as the WeChat export skill:
+Same pattern as the WeChat export skill (its note has the details):
 
-- Personal backup of your own data on your own device = personal data access.
-- Read-only memory scan, no code modification, low detection risk compared to
-  injection / patching.
+- Only the user's own data on their own device, for a personal backup.
+- What the technique does: it reads the `QQ.exe` process's memory. It writes nothing
+  to the process, injects no code and patches no file.
+- Tencent's terms of service prohibit reverse engineering. Do not predict what Tencent
+  will do about it.
 - Do not share decrypted DBs or key files -- they contain other people's info.
 
 ## Related skills

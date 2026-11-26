@@ -26,6 +26,10 @@ D:	/mnt/d	drvfs	metadata,uid=1000,gid=1000,umask=22	0 0
 E:	/mnt/e	drvfs	metadata,uid=1000,gid=1000,umask=22	0 0
 
 # --- Cross-distro share: bind this distro's root under the shared tmpfs -------
+# OFF BY DEFAULT. Uncomment only on a machine that runs two or more WSL distros
+# (see setup/README.md step 1.4). With a single distro nothing ever reads this
+# bind, and it costs one confusing line on every distro start -- see below.
+#
 # /mnt/wsl is a tmpfs shared by every WSL2 distro in the VM, so a bind whose
 # TARGET sits under it is visible from every other distro. Replace <Distro>
 # below with this distro's own name (`echo $WSL_DISTRO_NAME`).
@@ -39,7 +43,12 @@ E:	/mnt/e	drvfs	metadata,uid=1000,gid=1000,umask=22	0 0
 # signature), and systemd then mounts it correctly, creating the mount point
 # itself a second later.
 #
+# That message is NOT unique to this entry: any drvfs line naming a drive letter
+# the machine does not have prints the identical text (measured -- a stale `J:`
+# line did it with this bind commented out). Check the drive list above before
+# blaming the bind.
+#
 # Requires systemd. Verified across a real `wsl --shutdown` on Fedora + Ubuntu.
 # Binding all of / exposes this distro's whole filesystem to the others; bind a
 # single directory instead if that is more than you want to share.
-/	/mnt/wsl/<Distro>	none	bind,nofail	0 0
+#/	/mnt/wsl/<Distro>	none	bind,nofail	0 0

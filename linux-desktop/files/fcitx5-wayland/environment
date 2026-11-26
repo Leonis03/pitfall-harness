@@ -1,0 +1,50 @@
+# linux-desktop/files/fcitx5-wayland/environment
+#
+# System-wide environment for a native Wayland desktop running Fcitx5.
+# Deploy to:
+#   /etc/environment
+#
+# Read this file before assuming it is right for the machine you are on.
+#
+# VERIFICATION (2026-11-22): the reasoning under GTK_IM_MODULE / QT_IM_MODULE
+# below was NOT the cause of the browser failure. The cause was that Fcitx5
+# was not KWin's input method; with Fcitx 5 selected as the Plasma virtual
+# keyboard, Chrome and Firefox typed with or without the two variables. This
+# file records what was deployed, not a recommendation -- see
+# linux-desktop/wayland-fcitx5-rime.md, root cause 4.
+#
+# ONE variable, on purpose:
+#
+#   XMODIFIERS=@im=fcitx
+#     Points X11 and XWayland clients at Fcitx5's XIM server. The server name
+#     is `fcitx`, NOT `fcitx5` -- Fcitx5 registers its XIM under the older
+#     name for compatibility, and `fcitx5-diagnose` will say
+#     `Environment variable XMODIFIERS is "@im=fcitx5" instead of "@im=fcitx"`
+#     if it is wrong.
+#
+#     Note that the `fcitx5-autostart` package ships
+#     `/etc/profile.d/fcitx5.sh`, which exports `XMODIFIERS=@im=fcitx` plus
+#     `GTK_IM_MODULE` and `QT_IM_MODULE` for every GUI login. Do not edit that
+#     packaged file (an upgrade overwrites it) and do not add the two toolkit
+#     variables here:
+#
+#   GTK_IM_MODULE / QT_IM_MODULE
+#     Deliberately ABSENT. On Wayland these tell the toolkit to use
+#     Fcitx5's X11-era module instead of the Wayland input-method protocol,
+#     which breaks native Wayland clients (Chrome, Firefox) while X11 and
+#     D-Bus clients (Konsole, Dolphin, the Plasma search bar) keep working.
+#     Fcitx5 says so at startup:
+#       "Detect GTK_IM_MODULE and QT_IM_MODULE being set and Wayland Input
+#        method frontend is working. It is recommended to use Wayland input
+#        method frontend."
+#
+#     They still arrive in the session, because /etc/profile.d/fcitx5.sh runs
+#     for every login. To see what a fresh login would actually inherit:
+#
+#       env -i HOME="$HOME" PATH=/usr/bin:/bin XDG_SESSION_TYPE=wayland \
+#         bash -c 'for f in /etc/profile.d/*.sh; do [ -r "$f" ] && . "$f"; done;
+#                    echo "GTK_IM_MODULE=[$GTK_IM_MODULE] QT_IM_MODULE=[$QT_IM_MODULE] XMODIFIERS=[$XMODIFIERS]"'
+#
+# See linux-desktop/wayland-fcitx5-rime.md for the full write-up.
+
+XMODIFIERS=@im=fcitx

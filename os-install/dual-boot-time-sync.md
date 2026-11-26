@@ -17,7 +17,7 @@ or -- worse -- self-healing and therefore invisible.
 
 | Clock | Where it lives | Who writes it | Who reads it |
 | :--- | :--- | :--- | :--- |
-| **Hardware RTC** | The motherboard's coin-cell-backed CMOS | Whoever boots last, and any OS that runs `hwclock --systohc` | Every OS, at boot |
+| **Hardware RTC** | The motherboard's coin-cell-backed CMOS | Windows, in the convention its `RealTimeIsUniversal` names; the Linux kernel every 11 minutes while NTP is synchronized, in the convention it was given at boot; anyone running `hwclock --systohc` (section 1.1) | Every OS, at boot |
 | **System clock** | The running kernel | The OS, from the RTC at boot, then from NTP | Every process |
 | **NTP** | The network | An upstream server | `w32time` / `chrony` / `systemd-timesyncd` |
 
@@ -60,6 +60,51 @@ timedatectl show -p LocalRTC        # yes = RTC holds local time, no = UTC
 > Linux. So a convention change is not a two-minute edit: it is a change that
 > only becomes observable after a reboot, which is exactly when an 8-hour error
 > shows up. Change it, reboot, then measure.
+
+### 1.1 Who writes the RTC
+
+The convention is not only how each side *reads* the RTC: each side also
+*writes* it, and the RTC holds whatever the last writer left. The contract
+holds only when both sides write the convention the other one reads.
+
+**Windows keeps the RTC in the convention its flag names.** Measured on two
+machines whose flag was not touched for weeks:
+
+| Machine | `RealTimeIsUniversal` | What the RTC held | How it was measured |
+| :--- | :--- | :--- | :--- |
+| A (section 5.1) | `1` | **UTC** | Two weeks of `Kernel-General` event 1 (section 3.1): `RealTimeIsUniversal=true` in force, and `CmosTime` equal to the true UTC of a clock that was right. Weeks of alternating Windows and Linux (`LocalRTC=no`) boots, all correct, with the Windows time service disabled -- so an 8-hour error would have stayed on screen |
+| B (section 5.2) | `0` (absent) | **local time** | Two weeks of `Kernel-General` events 12 (boot) and 1: the RTC held the true local time at every boot and resume, and no change near the zone offset was ever logged |
+
+When Windows writes the RTC -- at a time sync, at a resume, at shutdown -- was
+not measured, and the contract does not depend on it: the convention follows
+the flag, and the flag in force is the one read **at boot** (section 3.1 shows
+how to read it).
+
+> An earlier reading of section 8 concluded that Windows writes **local time
+> whatever the flag says**, and moved machine A to local time on both sides.
+> The boots it relied on had the flag changed between them, so the shutdowns
+> in question ran under a different flag than the registry showed. Machine A
+> refutes it -- flag `1`, RTC in UTC, for weeks -- and section 8, incident 3,
+> records what acting on it cost.
+
+**On Linux the kernel writes the RTC, not the shutdown.** With chrony's
+`rtcsync` (on by default on Fedora) the kernel copies the system clock into
+the RTC every 11 minutes while NTP is synchronized. It writes in the
+convention it was given **at boot**: when `LocalRTC=yes`, systemd tells the
+kernel during early boot and logs
+
+```text
+RTC configured in localtime, applying delta of 480 minutes to system time.
+```
+
+(480 minutes = UTC+08:00). When `LocalRTC=no` there is no such line. So
+`timedatectl set-local-rtc` changes how the *next* boot reads the RTC, not
+how the running kernel writes it: until the next reboot the kernel keeps the
+old convention, and its next 11-minute write can undo the
+`hwclock --systohc` that followed the change. That overwrite is inferred from
+the kernel and systemd mechanism, not observed -- the change measured in
+section 8 was followed by an immediate reboot. **Change `LocalRTC`, then
+reboot at once**, and look for the line above.
 
 ---
 
@@ -118,6 +163,27 @@ Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' |
   Select-Object RealTimeIsUniversal, TimeZoneKeyName
 ```
 
+The registry shows the value the **next** boot will use. The value the running
+kernel uses was read at boot, and Windows logs it: every clock change (a sync,
+a resume, a manual set) writes a `Kernel-General` event 1 whose XML carries
+that value next to the raw RTC value.
+
+```powershell
+$e = Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-General'; Id=1} -MaxEvents 1
+$e.TimeCreated
+([xml]$e.ToXml()).Event.EventData.Data |
+  Where-Object Name -in 'NewTime','CmosTime','RealTimeIsUniversal' | Select-Object Name, '#text'
+```
+
+`RealTimeIsUniversal` there is `true` or `false`: the flag **in force** for
+the boot that wrote the event. `CmosTime` is the RTC's raw value, printed
+with a `Z` whatever it holds; compared with the true time from an independent
+source (section 3.3) it shows which convention the RTC held. Do not compare
+it with `NewTime` on a resume event: there `NewTime` was computed *from* the
+RTC under the same flag, so the two always agree. The message text says the
+same thing (`RTC time is in UTC: true`), but in the display language; the
+XML field names do not change.
+
 `w32tm /query /status` failing with **`The service has not been started.
 (0x80070426)`** is not a network problem. It means the Windows Time service is
 disabled, so the clock is free-running and nothing will ever correct it.
@@ -147,6 +213,18 @@ interpretations, and util-linux always prints in *local* time -- so the two
 lines differ by exactly the UTC offset. The one that matches the system clock
 is the convention the RTC actually **holds**; if neither matches, the RTC is
 stale.
+
+```bash
+journalctl -b | grep -i 'configured in localtime'                # present only if this boot started with LocalRTC=yes
+journalctl -b -u chronyd -u chrony | grep -E 'wrong by|stepped'   # how far off this boot started
+```
+
+The `hwclock` comparison shows what the *other* OS left in the RTC only until
+this system's own first 11-minute write replaces it (section 1.1). After that
+the RTC holds this system's write, and the two readings say nothing about the
+other side. chrony's first correction is the lasting record: `System clock
+wrong by 28799.x seconds` (or `-28800.x`) at this boot means the OS that ran
+before it left the RTC in the other convention; a second or two is drift.
 
 > Comparing the two lines means comparing parsed *instants*, not strings.
 > `hwclock` prints a local-time string carrying the local offset, so `date -d`
@@ -192,40 +270,74 @@ Do this from a state where the system clock is already known to be correct
 > reader. Measure again after any change of writer: a manual clock set or a
 > shutdown from the other OS can flip it.
 
+> **Read the other side before changing this one.** Before touching
+> `LocalRTC`, read `RealTimeIsUniversal` on Windows -- the registry value and
+> the value in force (section 3.1) -- and the reverse. Each side can pass all
+> of its own checks while the contract is broken: section 8, incident 3, is a
+> Linux-side change that passed every Linux-side probe and put the next
+> Windows boot 8 hours out.
+
 ### Option A -- the RTC holds local time
 
 ```powershell
-# Windows: read the RTC as local time
+# Windows: read and keep the RTC as local time (takes effect at the next restart)
 Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' `
   -Name RealTimeIsUniversal -Value 0
 ```
 
 ```bash
-# Linux: read the RTC as local time
+# Linux: read and write the RTC as local time
 sudo timedatectl set-local-rtc 1
 sudo hwclock --systohc --localtime     # write the current (correct) time back
-hwclock --show --localtime              # must match `date`
+sudo systemctl reboot                  # at once: until then the kernel writes the old convention
+# after the reboot
+journalctl -b | grep -i 'configured in localtime'   # must be present
+hwclock --show --localtime             # must match `date`, also 12 minutes after NTP sync
 ```
 
 ### Option B -- the RTC holds UTC
 
 ```powershell
-# Windows: read the RTC as UTC
+# Windows: read and keep the RTC as UTC (takes effect at the next restart)
 Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' `
   -Name RealTimeIsUniversal -Value 1
 ```
 
 ```bash
-# Linux: read the RTC as UTC
+# Linux: read and write the RTC as UTC
 sudo timedatectl set-local-rtc 0
 sudo hwclock --systohc --utc           # write the current (correct) time back
-hwclock --show --utc                   # must match `date -u`
+sudo systemctl reboot                  # at once, as above
+# after the reboot
+journalctl -b | grep -i 'configured in localtime'   # must print nothing
+hwclock --show --utc                   # must match `date -u`, also 12 minutes after NTP sync
 ```
 
 Option B matches the Linux default (`LocalRTC=no`) and the common BIOS default
 (UTC). Option A matches the Windows default. **Either is fine; mixing them is
 the bug.** Whatever is chosen, record it in the install notes -- it is the one
 piece of the dual-boot contract that no tool can read for you.
+
+### A fresh Linux install next to Windows
+
+When the choice is still open, prefer **Option B (UTC)**:
+
+- It is every distribution's default, so a reinstall of the Linux side keeps
+  the contract with nothing to redo. Option A has to be re-applied after every
+  Linux reinstall, with the reboot of section 1.1.
+- `timedatectl` itself warns that an RTC in local time "cannot be fully
+  supported".
+- The cost is one registry value on Windows (`RealTimeIsUniversal = 1`), set
+  once and re-set only after a Windows reinstall.
+
+An installer can choose local time on its own when it finds Windows on the
+disk, and does not always ask. Whatever it showed, check after the first boot:
+
+```bash
+timedatectl show -p LocalRTC        # expect no, for Option B
+```
+
+Then run the cross-system round of section 7 once before trusting it.
 
 > `hwclock --systohc` interprets the *system* clock according to the RTC
 > convention in force. Pass `--utc` or `--localtime` explicitly so the write
@@ -296,7 +408,7 @@ Event `35` is the proof that a repair happened; `134` is the first sign of the
 network that makes the repair impossible. This is the difference between "the
 system fixed it" and "I know it was fixed, and I know why".
 
-### 5.1 The policy on this machine
+### 5.1 The policy on machine A (Windows + Fedora)
 
 The deliberate choice here, written down so the next reader does not have to
 rediscover it:
@@ -306,7 +418,7 @@ rediscover it:
 | W32Time service | `Disabled`, stopped | Automatic repair is **off on purpose**. A clock that is quietly patched hides the fault; the operator wants to find the cause instead of inheriting a corrected symptom |
 | `Type` under `...\W32Time\Parameters` | `NoSync` | The second half of what the Settings toggle writes -- both are needed to keep the service off |
 | NTP peers | still in `NtpServer` | Left in place, so the service can be re-enabled with one command and so `w32tm /stripchart` still has a target to measure against |
-| RTC convention | **UTC on both sides** -- `RealTimeIsUniversal = 1` on Windows, `LocalRTC = no` on Linux | Measured, not assumed: the raw RTC value equals **UTC** (section 8, findings 6 and 7). Windows is in the right mode as shipped -- **do not change `RealTimeIsUniversal`**. The Linux side is the distro default and needs no change either. Verify it with one command: `timedatectl show -p LocalRTC` (expect `no`) and `hwclock --show --utc` (must equal `date -u`) |
+| RTC convention | **UTC on both sides** -- `RealTimeIsUniversal = 1` on Windows, `LocalRTC = no` on Linux | Measured, not assumed: the raw RTC value equals **UTC** (section 8, incident 2), and weeks of Windows events show the RTC kept in UTC under flag `1` (section 1.1). Windows is in the right mode as found -- **do not change `RealTimeIsUniversal`**. The Linux side is the distro default and needs no change either; a reinstall keeps it, but check (section 4). Verify it with `timedatectl show -p LocalRTC` (expect `no`) and `hwclock --show --utc` (must equal `date -u`). Re-verified the hard way on 2026-11-21 (section 8, incident 3) |
 | Fast startup | disabled | Section 6 |
 | Time zone | a fixed UTC+08:00 zone, no DST | |
 
@@ -319,6 +431,23 @@ The probe script exists for the same reason. It reports the state of the
 machine at any moment, so the operator can tell "the fault is still there"
 from "the fault was fixed an hour ago and I did not notice" -- which is
 exactly what a self-healing clock looks like from the outside.
+
+### 5.2 Machine B (Windows + Linux Mint)
+
+A second machine, measured read-only on 2026-11-21. It runs the other
+convention, and its Windows side is consistent with it:
+
+| Setting | Value |
+| :--- | :--- |
+| RTC convention, Windows side | **local time** -- `RealTimeIsUniversal` absent (= `0`); `Kernel-General` event 1 shows `RealTimeIsUniversal=false` in force, and the RTC held the true local time at every boot and resume the log covers (two weeks) |
+| RTC convention, Linux side | **not measured yet** -- it must be `LocalRTC = yes` to match. With `no`, every Windows boot that follows a Mint session starts 8 hours behind (section 2) |
+| W32Time service | `Automatic`, running, `Type = NTP` -- an 8-hour error would be corrected after boot, but it would still leave a `Kernel-General` event 1 with a change near the zone offset; none was logged |
+| Fast startup | **on** at the first measurement, turned off the same day |
+| Time zone | a fixed UTC+08:00 zone, no DST |
+
+If the Mint side turns out to be `LocalRTC = no`, move this machine to UTC on
+both sides (Option B) rather than changing Mint: it is the convention machine
+A has proven, and it survives a reinstall of the Linux side.
 
 ---
 
@@ -346,10 +475,6 @@ Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 
 
 `0` = fast startup off (the safe setting for a dual-boot machine), `1` = on.
 
-With fast startup on, the "the clock is wrong in Linux only" symptom has a
-third possible cause, and the fix is to turn fast startup off and re-test
-before touching any RTC convention.
-
 ---
 
 ## 7. Verification checklist
@@ -365,6 +490,7 @@ w32tm /query /status                                             # expect: Strat
 w32tm /stripchart /computer:<your-ntp-server> /dataonly /samples:3   # expect: |offset| < 1 s
 Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' |
   Select-Object RealTimeIsUniversal                               # expect: 0 or 1, matching the choice
+# and the value in force for this boot (section 3.1)              # expect: the same as the registry
 ```
 
 **Linux**
@@ -373,18 +499,25 @@ Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' |
 timedatectl show -p LocalRTC -p NTPSynchronized
 # the chosen convention: --utc here, --localtime for the local one
 hwclock --show --utc       # must equal `date -u`; with --localtime it must equal `date`
+journalctl -b | grep -i 'configured in localtime'                # present exactly when LocalRTC=yes
+journalctl -b -u chronyd -u chrony | grep -E 'wrong by|stepped'   # no correction near the zone offset
 ```
 
 **Cross-system**
 
 ```text
 1. `date` in Linux and the clock in Windows agree, to the minute
-2. Reboot into the other system, repeat -- the agreement survives the reboot
+2. Reboot into the other system, repeat -- the agreement survives the reboot;
+   on Linux, read chrony's correction for that boot as well
 3. The measured offset stays under a second after both sides are up
+4. After a LocalRTC change: reboot at once, and check the RTC again 12 minutes
+   after NTP synchronization -- the kernel's own RTC write has happened by then
 ```
 
 Step 2 is the one that catches the RTC convention bug: **a clock that is only
-correct until the next reboot is not fixed.**
+correct until the next reboot is not fixed.** Run it in both directions --
+Linux to Windows and Windows to Linux -- because each direction tests the other
+side's write.
 
 **A record of the machine's state** (Windows, one line each):
 
@@ -403,7 +536,7 @@ they never change a setting.
 
 ---
 
-## 8. One incident, measured
+## 8. Three incidents, measured
 
 Recorded so the reasoning is reproducible rather than folklore.
 
@@ -455,7 +588,31 @@ the 10-23 boot and wrong about the RTC in general: the RTC's content depends on
 **who wrote it last**, and a manual clock set (or a shutdown from an OS whose
 convention differs) is enough to flip it.
 
-**Lesson.** Two lessons, both about the same switch:
+**Incident 3 -- a one-sided change, 2026-11-21.**
+
+On the strength of the "Windows writes local time whatever the flag" reading
+(section 1.1), the Linux side of this machine (machine A) was moved to local
+time:
+`timedatectl set-local-rtc 1`, `hwclock --systohc --localtime`, then an
+immediate reboot. Every Linux-side check passed:
+
+- the boot logged `RTC configured in localtime, applying delta of 480 minutes`;
+- chrony logged no correction at that boot, and `date` matched an HTTP `Date`
+  header;
+- 17 minutes after NTP synchronization, `hwclock --show --localtime` still
+  matched `date` to a second, and the probe reported `RTC convention OK`.
+
+The next Windows boot came up **28,801 s ahead**. Its flag was `1`, and nobody
+had read it before the change: Windows read the local-time RTC as UTC and
+added the zone. With the time service disabled, nothing corrected it -- the
+error was on screen at once, as section 5.1 intends.
+
+The same Windows log showed why the old setup had worked: two weeks of
+`Kernel-General` events with `RealTimeIsUniversal=true` and the RTC holding the
+true UTC. The Linux side was put back to `LocalRTC = no`, rebooted at once,
+and its probe passes again.
+
+**Lesson.** Four lessons, all about the same contract:
 
 1. **The flag is read at boot.** Changing `RealTimeIsUniversal` while the
    machine is running changes nothing until the next reboot -- and the *old*
@@ -467,7 +624,14 @@ convention differs) is enough to flip it.
    `hwclock --show` and `hwclock --show --utc`. On Windows the equivalent is
    the boot stamp: the first time-service event of a boot carries the clock as
    it was, so `display = RTC + zone` (flag 1) or `display = RTC` (flag 0)
-   gives the RTC's value directly.
+   gives the RTC's value directly. `Kernel-General` event 1 states the flag in
+   force and the raw RTC value outright (section 3.1).
+3. **Read the other side before changing this one.** A probe sees one side,
+   and each side can pass all of its own checks while the contract is broken.
+   Only the other side's flag, read *before* the change, and a boot into the
+   other system *after* it, show the contract.
+4. **A `LocalRTC` change needs an immediate reboot.** The running kernel keeps
+   writing the RTC in the convention it was given at boot (section 1.1).
 
 **Which side to fix.** The measurement decides it, and the answer here is
 **neither**: the contract is **UTC on both sides**, which is what both systems

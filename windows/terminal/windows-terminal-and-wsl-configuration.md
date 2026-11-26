@@ -10,6 +10,7 @@
 * **问题现象**：在文件夹右键“在终端中打开”进入了该文件夹，但点击 `+` 或按 `Ctrl+Shift+T` 新建标签页时，路径被强制重置回 `%USERPROFILE%`（`C:\Users\用户名`）。
 * **核心原因**：Windows Terminal 默认 profile 中设置了 `"startingDirectory": "%USERPROFILE%"`。
 * **解决方案**：在 `settings.json` 的 `profiles.defaults` 中设置 `"startingDirectory": null`（或清空起始目录）。终端会在每次新建标签页时继承启动当前窗口的上下文工作目录。
+* **WSL profile 例外**：WSL 的 profile 由 fragment 生成，里面**自带 profile 级的 `"startingDirectory": "~"`**（本机：`%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Microsoft.WSL\{...}.json`）。profile 级优先于 `profiles.defaults`，所以只改 defaults 时 cmd 和 PowerShell 会继承目录，WSL 标签页仍然回到 `~`。必须在 `profiles.list` 里用同一 `guid` 再写一条 `"startingDirectory": null` 覆盖它。
 
 ### 2. 管理员模式下默认进入 `System32` 的处理机制
 * **问题现象**：当以管理员身份启动终端、或者从 `Win + X` 快捷菜单打开终端时，Windows 默认将工作目录分配为 `C:\Windows\System32`（WSL 下为 `/mnt/c/Windows/System32`）。
@@ -40,6 +41,11 @@
 ## 二、 对系统与配置文件的实际改动清单
 
 对本地系统和配置文件做了以下改动：
+
+> 本节记录的是 **Ubuntu 那台机器**的改动，不是本仓库当前的 WSL 侧配置。四层分层接手之后，
+> System32 守卫住在 `~/.shell_common`（`case` + `tr` 的小写归一，bash / zsh 通用），由
+> `~/.zshrc` 与 `~/.bashrc` 共同 source；提示符 `%~` 覆盖在 `~/.zshrc` 末尾。原件见
+> [`shell/`](../../shell/)。**不要把下面的片段再加进 `~/.zshrc`**，否则同一段逻辑会有两份。
 
 ### 1. PowerShell 7 配置文件修改
 * **目标文件**：`C:\Users\<your-windows-user>\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`

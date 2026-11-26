@@ -66,6 +66,16 @@ if ($settingsFile) {
 }
 ```
 
+> ⚠️ **这条命令只覆盖 `profiles.defaults`。** cmd、PowerShell 这类 profile 会继承目录，但 WSL 的
+> profile 由 fragment 生成，里面自带 profile 级的 `"startingDirectory": "~"`，profile 级优先，
+> 所以 WSL 标签页仍然回到 `~`。要连 WSL 一起改，在 `profiles.list` 里用**同一个 `guid`** 再写一条：
+>
+> ```json
+> { "guid": "{<那个 WSL profile 的 guid>}", "startingDirectory": null }
+> ```
+>
+> 也可以直接手改 `settings.json`，省掉 `ConvertTo-Json` 把整个文件重排成 2 空格缩进。
+
 ---
 
 ## 三、 命令 2：PowerShell 启动检测与路径上报（写入 `$PROFILE`）
@@ -123,6 +133,10 @@ function prompt {
 }
 '@ | Out-File -FilePath $PROFILE -Append -Encoding ascii
 ```
+
+> 如果已经部署了 [`files/powershell/Microsoft.PowerShell_profile.ps1`](../files/powershell/Microsoft.PowerShell_profile.ps1)，
+> **跳过这一步**：它的第 7、8 节就是这两段（System32 跳转 + `OSC 9;9` 的 `prompt`），再追加一遍只是让
+> 同一个 `prompt` 被定义两次。那份原件是唯一权威，其余改动都应回到它上面做。
 
 ---
 

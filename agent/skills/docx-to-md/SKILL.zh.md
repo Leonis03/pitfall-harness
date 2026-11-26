@@ -168,7 +168,12 @@ Word 粘贴的系统软件截图或矢量图形常被存储为 Windows 增强型
 
 ### 4.10 标题碎片化粗体剥除防线
 Word 中作者撰写标题时，单句常被内部样式切分为多个连续的加粗 Run（如 `<w:rPr><w:b/></w:rPr>`）。若直接将各 Run 的粗体语法简单拼接，会输出形如 `# **安装** **SQL Server2016** **企业版** **教程**` 的碎片化冗余语法。
-- **防御规范**：当段落判定为 `#`、`##`、`###` 或 `####` 大纲标题时，自动剥除内部碎片化的 `**` 包裹，输出纯净的原生 Markdown 标题。
+- **防御规范**：不仅输出标题时要剥除内部 `**` 包裹，**标题判定之前**同样必须先剥除。用带 `**` 的原文 `**一、实验目的**` 去匹配 `^[一-十]+、` 永远不成立，这类章节会停留为粗体段落，而同一文档里由 `numbering.xml` 补号的 `四、` 却被提升为 `##`，导致大纲层级不一致。守卫与输出应共用同一份去粗体文本：
+  ```python
+  guard_txt = clean_txt.replace('**', '').strip()
+  if re.match(r'^[一二三四五六七八九十]+、', guard_txt) and is_heading_candidate:
+      raw_blocks.append(("h2", f"## {guard_txt}\n\n"))
+  ```
 
 ### 4.11 行内小图标与独立配图分流防线
 Word 允许将行内小图标（如按钮截图、`SSMS-Setup-CHS.exe` 文件名图标）直接混排在文字 Run 内部。若一刀切将所有图片抽离为独立的 `img_group` 块，会把行内图标强行提到段首而破坏原句语意；反之一刀切全按行内渲染，则会导致连续大图被挤在同一行且丢失图题。
@@ -182,10 +187,17 @@ Word 文档（特别是从网页或中文排版软件复制的内容）常充斥
 
 ### 4.13 正文连续粗体 Run 粘连合并防线
 Word 样式将整句粗体分词为多个 Run 时，若逐个包裹粗体标记会生成形如 `**在实验一中建立好的** **study** **数据库中...**` 的碎片化碎裂粗体。
-- **防御规范**：利用安全的 Lambda 正则替换，在最终输出前自动合并相邻的粗体包裹标记：
+- **防御规范**：在最终输出前自动合并相邻的粗体包裹标记。注意包裹之间的空格是 Run 解析器补的分隔符，并非原文字符；无条件用空格拼接会把中文词切开（`实验 内容与 步骤`）。仅当两侧都是 ASCII 字母/数字、不加空格会粘连时才补空格（`SQL` + `Server`）；中文边界直接拼接，中西文之间该有的空格由 §4.14 盘古排版补回：
   ```python
+  def join_bold(m):
+      left, right = m.group(1).strip(), m.group(2).strip()
+      needs_space = bool(left and right
+                         and left[-1].isascii() and left[-1].isalnum()
+                         and right[0].isascii() and right[0].isalnum())
+      return f"**{left}{' ' if needs_space else ''}{right}**"
+
   while re.search(r'\*\*(.*?)\*\*\s*\*\*(.*?)\*\*', text):
-      text = re.sub(r'\*\*(.*?)\*\*\s*\*\*(.*?)\*\*', lambda m: f"**{m.group(1).strip()} {m.group(2).strip()}**", text)
+      text = re.sub(r'\*\*(.*?)\*\*\s*\*\*(.*?)\*\*', join_bold, text)
   while re.search(r'\*\*(.*?)\*\*\*\*(.*?)\*\*', text):
       text = re.sub(r'\*\*(.*?)\*\*\*\*(.*?)\*\*', lambda m: f"**{m.group(1)}{m.group(2)}**", text)
   ```

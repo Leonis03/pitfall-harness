@@ -32,7 +32,8 @@
 # THE GATE
 #
 # The export is scanned by tools/privacy-gate.sh before anything is written.
-# Account names come from this checkout's tools/.privacy-names, as usual. A
+# Account names come from this checkout's tools/.privacy-names and
+# tools/privacy-names.private (the export no longer has the latter). A
 # pass covers known shapes only, so --skip-gate exists for the case where you
 # have read every hit and they are expected (e.g. a name that is also the
 # public author name) -- not for skipping the read.
@@ -88,14 +89,17 @@ trap 'rm -rf "$STAGE"' EXIT
 git archive "$REF" | tar -x -C "$STAGE"
 # drafts/ is private-only (conventions.md): never part of an export. Remove it before
 # the gate and before anything is written, and refuse to go on if it survives.
-rm -rf "$STAGE/drafts"
-[ ! -e "$STAGE/drafts" ] || { echo "could not remove drafts/ from the export" >&2; exit 2; }
+# tools/privacy-names.private is private-only for the same reason: it lists the names.
+for p in drafts tools/privacy-names.private; do
+  rm -rf "${STAGE:?}/$p"
+  [ ! -e "$STAGE/$p" ] || { echo "could not remove $p from the export" >&2; exit 2; }
+done
 
 # --- gate -------------------------------------------------------------------
 names=""
-if [ -f tools/.privacy-names ]; then
-  names=$(sed 's/#.*//' tools/.privacy-names | tr -s '[:space:]' ' ')
-fi
+for f in tools/.privacy-names tools/privacy-names.private; do
+  [ -f "$f" ] && names+=" $(sed 's/#.*//' "$f" | tr -s '[:space:]' ' ')"
+done
 if ! ( cd "$STAGE" && PRIVACY_NAMES="$names" bash tools/privacy-gate.sh ) > "$STAGE.gate" 2>&1; then
   grep -vE '^\s+ok ' "$STAGE.gate"
   if [ "$skip_gate" -eq 0 ]; then

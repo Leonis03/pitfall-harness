@@ -14,6 +14,12 @@
 # (`this_key_is_bogus_xyz = 1`) in the file. If it stays silent, the validator
 # is not checking anything and a "pass" means nothing.
 #
+# Gotcha in the validator itself: pass the file with `=` glued to the flag.
+# `ghostty +validate-config --config-file=<path>` works and reports errors by
+# line number; the spaced form `--config-file <path>` exits 1 and says
+# NOTHING, on every file, valid or not. A silent exit 1 there means "the flag
+# was not parsed", not "the config is broken" -- and an empty file also exits 1.
+#
 # Gotcha worth remembering: the key that selects the program to run is
 # `command`, NOT `shell`. `shell` is not a Ghostty key in 1.3.1.
 # Unset, Ghostty runs the user's login shell from /etc/passwd.
@@ -22,6 +28,12 @@
 # SHELL=/bin/bash for the whole session tree, so passwd never reaches the
 # terminal. See honor-linuxlab/README.md 2.4.
 # command = /usr/bin/zsh
+#
+# The font has to be named here. Ghostty resolves `monospace` through fontconfig,
+# which lands on Noto Sans Mono -- not on Sarasa. Set the family explicitly so
+# the strict 1:2 half-to-full-width ratio the notes call for actually holds.
+# See linux-desktop/fedora/README.md 3.6 and 4.7.
+font-family = Sarasa Term SC
 
 keybind = ctrl+enter=unbind
 keybind = f11=toggle_fullscreen

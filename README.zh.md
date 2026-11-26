@@ -39,9 +39,9 @@ Config README Skill
 
 | 环境 | 在哪 |
 | :--- | :--- |
-| Windows 11 + WSL2（Ubuntu 24.04 → Fedora 44 迁移中） | [`wsl/`](wsl/) · [`windows/`](windows/) |
+| Windows 11 + WSL2（Ubuntu 24.04；Fedora 44 装过，已弃用） | [`wsl/`](wsl/) · [`windows/`](windows/) |
 | Windows 11 + 同一台机器上的 Linux 发行版（双系统） | [`os-install/`](os-install/) |
-| 原生 Linux 桌面（Linux Mint 22） | [`linux-desktop/`](linux-desktop/) |
+| 原生 Linux 桌面（Linux Mint 22；Fedora 44 / KDE 装过，已弃用） | [`linux-desktop/`](linux-desktop/) |
 | 上面两者共用的 bash / zsh 四层配置 | [`shell/`](shell/) |
 | Android（Termux root chroot） | [`agent/skills/`](agent/skills/) 下的 `android-chroot-debian` 等 skill |
 | 荣耀平板 Linux 实验室（PRoot 容器） | [`honor-linuxlab/`](honor-linuxlab/) · [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/) |
@@ -49,13 +49,12 @@ Config README Skill
 
 > **AI agent 请先读 [`AGENTS.md`](AGENTS.md)**：目录地图、「要做 X 改哪些文件」对照表、必须一起改的文件、提交前检查。
 
-> **WSL 迁移中**：**Ubuntu 24.04** 是此前的主力发行版，现在日常工作已转到 **Fedora 44**，正在把配置向它对齐。
-> 两边并存：`wsl -l -v` 里 Ubuntu 仍是默认（那个 `*`），但实际敲命令的地方是 Fedora。
-> 四层 shell 配置的核心三个（`.zshenv` / `.shell_wslfn` / `.shell_common`）两边同哈希，剩下的差异要么是
-> 发行版本身决定的（Fedora 的 fcitx5 块、`/etc/bashrc`），要么还在收敛。
-> 具体差异与「哪些可避免、哪些不可避免」见 [`wsl/distro-differences.md`](wsl/distro-differences.md)。
+> **Fedora 44 装过，已弃用 —— WSL 和台式机都是。** 有一段时间，WSL 里的日常工作转到了与 **Ubuntu 24.04**
+> 并存的 Fedora 44 发行版上，台式机的固态硬盘也装过 Fedora 44 + KDE Plasma（Wayland）。两者都已于 2026-11 放弃；
+> WSL 以 Ubuntu 24.04 为准。期间实测的内容作为记录保留：WSL 的对比（哪些可避免、哪些不可避免）见
+> [`wsl/distro-differences.md`](wsl/distro-differences.md)，台式机见 [`linux-desktop/fedora/`](linux-desktop/fedora/)。
 >
-> 文档里写 Ubuntu 的地方多数仍然成立——差异都在 `distro-differences.md` 里单独记着。
+> 文档里写 Ubuntu 的地方多数成立——差异都在 `wsl/distro-differences.md` 里单独记着。
 
 内容分两类：**能直接复制部署的配置文件**，以及**排查过程留下的结论**——后者往往比配置本身更值钱，因为它记录了「为什么是这样」。
 
@@ -75,6 +74,7 @@ Config README Skill
 | **在新的 Windows 机器上复刻 WSL 环境** | [`wsl/setup/`](wsl/setup/) —— 复刻指南，可整份交给 agent 执行 |
 | **在 Windows 旁边装第二个系统，并让两边时钟一致** | [`os-install/`](os-install/) —— 跨越安装边界的契约；当前是双系统的 RTC/UTC 时钟契约 |
 | 在原生 Linux 桌面上复刻 | [`linux-desktop/`](linux-desktop/)，shell 配置用 [`shell/`](shell/) |
+| **给刚装好的新 Linux 机器做部署** | [`linux-bootstrap/`](linux-bootstrap/) —— 与机器无关的部署脚本，以及它所依据的 shell 历史 |
 | 配 Git 与 GitHub（含隐私邮箱） | [`git-github/`](git-github/) |
 | 配 Claude Code | [`agent/claude-code/`](agent/claude-code/) |
 | 找一个现成的 skill，或把 skill 同步到本机 | [`agent/skills/`](agent/skills/) —— 部署走 `tools/sync-skills.sh`，不是 `cp` |
@@ -87,7 +87,7 @@ Config README Skill
 
 ## 目录
 
-除 `tmp/` 外，每个顶层目录都有一个 `README.md` 做索引；带 `files/` 的目录，`files/` 下是可直接部署的原件，其余是文档。
+除 `tmp/` 与 `.github/` 外，每个顶层目录都有一个 `README.md` 做索引；带 `files/` 的目录，`files/` 下是可直接部署的原件，其余是文档。
 
 ### [`shell/`](shell/) —— bash / zsh 四层配置（WSL 与原生 Linux 共用）
 
@@ -123,12 +123,27 @@ WSL 专属的互操作函数在原生 Linux 上靠 `/proc/version` 检测自动�
 Linux Mint 22（Ubuntu 24.04 noble 底座）上的复刻记录：换源、代理与 `sudo`、`chsh`、fcitx5、剪贴板、
 Ghostty 与 Nemo 右键菜单、多设备历史命令迁移。`files/` 下是 Ghostty 配置与 Nemo action 原件。
 
+[`wayland-fcitx5-rime.md`](linux-desktop/wayland-fcitx5-rime.zh.md) 与
+[`wayland-clipboard-automation.md`](linux-desktop/wayland-clipboard-automation.zh.md) 记录了 Plasma Wayland 会话
+为了输入法需要做什么，以及在剪贴板和自动化上做不到什么。
+
+[`linux-desktop/fedora/`](linux-desktop/fedora/) 是同一件事在 **Fedora 44 / KDE Plasma / Wayland**
+上的版本 —— 在台式机的固态硬盘上装过、已于 2026-11 弃用，作为记录保留 —— 那里几乎每个执行者都换了人——dnf5 而非 apt、Dolphin 而非 Nemo、Konsole 而非
+GNOME Terminal、`wl-clipboard` 而非 `xclip`，以及一个把代理配置劈成两半、且哪一半都不喂给 CLI
+的桌面。
+
 ### [`honor-linuxlab/`](honor-linuxlab/) —— 荣耀平板 Linux 实验室
 
 第三类环境，也是最容易配错的一类：PRoot 容器里 `127.0.0.1` 就是容器自己，全机没有任何代理软件。
 记录官方内置知识库与官方助手都没覆盖的部分——终端代理变量层、locale 与输入法的冲突，
 以及 28 个官方知识单元的逐条覆盖度比对（见 [`docs-gap.md`](honor-linuxlab/docs-gap.md)）。
 可执行的流程在 [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/)。
+
+### [`linux-bootstrap/`](linux-bootstrap/) —— 新机器部署
+
+与机器无关的开机部署：换源、基础包集、node 与 python 工具链、带 oh-my-zsh 和两个插件的
+zsh，以及四层 shell 配置。它是从六台机器真实的 shell 历史里挖出来的——出处，以及同样重要的
+「哪些没有采纳」，见 `history-inventory.md`。`files/` 下是脚本与一个只读的结果探针。
 
 ### [`agent/`](agent/) —— AI 工具链
 
@@ -143,7 +158,9 @@ Ghostty 与 Nemo 右键菜单、多设备历史命令迁移。`files/` 下是 Gh
 
 Git 隐私配置与历史脱敏 runbook（含 GitHub 文件大小的四道门槛）；Python 与远程执行的踩坑；
 Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以及 ChkTeX 为什么在中文环境必须关掉）；
-以及三个维护本仓库的脚本——[`tools/privacy-gate.sh`](tools/privacy-gate.sh)（发布前的脱敏门禁）、
+以及五个维护本仓库的脚本——[`tools/lint.sh`](tools/lint.sh)（`AGENTS.md` 里那些会静默失效的规则，CI 在每个 PR 上也跑）、
+[`tools/install-hooks.sh`](tools/install-hooks.sh)（把 `lint.sh` 装成 pre-commit 钩子）、
+[`tools/privacy-gate.sh`](tools/privacy-gate.sh)（发布前的脱敏门禁）、
 [`tools/sync-skills.sh`](tools/sync-skills.sh)（skill 的渲染式部署与核对）和
 [`tools/publish.sh`](tools/publish.sh)（导出到两个公开仓库）。两类内容的区分见 [`tools/README.md`](tools/README.md)。
 
@@ -161,6 +178,8 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **非交互 shell 不展开 alias** | 脚本和 AI agent 报 `command not found`，你自己敲却好好的 | [`shell/`](shell/) 三条硬规则 |
 | **wslu 在 systemd 下误报** | `WSL Interoperability is disabled`，但 `wsl.conf` 明明是对的 | [`git-github/README.md`](git-github/README.md) 二.3 |
 | **`filter-repo` 静默毁改动** | 重写历史后未提交的已跟踪修改消失，且无提示 | [`git-github/email-scrub-runbook.md`](git-github/email-scrub-runbook.md) 第 2 节 |
+| **`apt` 装到的 `gh` 是 2024 年的版本** | `gh --version` 显示 2.46.0，括号里那个日期是 Debian 的**打包日**不是发布日：上游 2.46.0 其实发布于 2024 年 3 月，之后又出了 80 个版本。Fedora 的 dnf 版只落后 9 个，所以这坑是发行版特有的 | [`git-github/README.md`](git-github/README.md) 第三节 |
+| **fine-grained PAT 的权限不是 scope** | `gh auth status` 不打印 scope 列表，漏掉一项权限只会在某一条命令上冒出 `HTTP 403: Resource not accessible by personal access token`；重登多少次都修不好 | [`git-github/README.md`](git-github/README.md) 第三节 |
 | **`no_proxy` 通配符失效** | 访问本机服务却穿了代理，报 502 空体像"请求失败" | [`tools/python/`](tools/python/) 第 1 节 |
 | **f-string 引号规则** | `invalid syntax`，且 3.10 与 3.12 行为不同 | [`tools/python/`](tools/python/) 第 2 节 |
 | **numpy 2 不会让纯 Python 循环变快** | 热点在 Python 循环里时，为提速升级 numpy 毫无作用；同一个任务从 3.10 换到 3.12 快了 1.4 倍，输出逐字节相同 | [`tools/python/`](tools/python/) 第 3 节 |
@@ -176,6 +195,11 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **zsh 在 `for` 列表里遇到无匹配 glob 会中止整个文件** | 同一份 `~/.shell_common` 被 bash 和 zsh 共用；bash 把字面量原样传下去，zsh 直接 `no matches found` 退出，后面的配置全不执行 | [`wsl/setup/`](wsl/setup/) 常见问题 |
 | **zsh 里 `echo ======` 报错** | `zsh: = not found`，同一行后面的命令也不执行：以 `=` 开头的词会被展开成命令路径。加引号 | [`shell/`](shell/) |
 | **非交互 bash 没有 `.zshenv` 的对等物** | zsh 侧的互操作函数覆盖到了脚本和 agent，bash 侧没有：`bash -c` 和 `#!/bin/bash` 两个启动文件都不读。验收清单历史上写的是 `bash -ic`，带 `-i` 恰好把缺口盖住了。出口是 `BASH_ENV` | [`wsl/setup/`](wsl/setup/) 验证清单第 3 条 |
+| **pnpm 全局装的 CLI 可以装得完全正确却起不来** | 报 `Cannot find module '\\wsl.localhost\...'`，而那个文件明明在：shim 在运行时挑解释器，WSL2 上把脚本交给了 Windows node，而 Windows 读不了 UNC 路径上的软链 | [`wsl/`](wsl/pnpm-shim-wsl2-node-path.md) |
+| **`PROFILE=/dev/null` 把激活推给一个可能永远不会发生的步骤** | nvm 在盘上、`nvm alias default 24` 也设了，但每个 shell 里 `command -v node` 都是空的：会 source `nvm.sh` 的那行从来没被写进任何 rc 文件 | [`wsl/`](wsl/pnpm-shim-wsl2-node-path.md) |
+| **在手工拼出来的 PATH 里做验证，不算验证** | `--version` 在那个自己 export 了 `NVM_DIR` 的安装脚本里一切正常，在用户真正敲的终端里却是 `MODULE_NOT_FOUND` | [`wsl/`](wsl/pnpm-shim-wsl2-node-path.md) |
+| **现网的 `/etc/wsl.conf` 不等于仓库原件** | 被 Windows 端安装器写出来的 `wsl.conf` 只有 `[boot] systemd=true`，于是 Windows PATH 被追加，`find`/`sort`/`curl` 全部被 Windows 版本抢先 | [`wsl/`](wsl/pnpm-shim-wsl2-node-path.md) |
+| **`command -v` 守卫跑在它依赖的 PATH 条目之前** | 没有 wslu 的发行版（Debian、Fedora）上，每个新终端里 `BROWSER` 都是空的，`gh auth login` 唤不起浏览器，验证却照样通过：探测 `~/.local/bin/wslview` 时 `~/.local/bin` 还没进 PATH，而从已打开的终端起的 shell 都继承了那份 PATH。用 `env -i ... bash -lic` 验证 | [`wsl/distro-differences.md`](wsl/distro-differences.md) 4.7 |
 | **`.gitattributes` 管不到 zip** | 整个文件被报成重写，真改动淹没在假 diff 里 | [`git-github/crlf-and-diffing.md`](git-github/crlf-and-diffing.md) |
 | **`/reg:64` 重定向** | 注册表键"明明存在却找不到" | [`agent/skills/wsl-windows-command/`](agent/skills/wsl-windows-command/) |
 | **`binfmt_misc` 跨发行版全局** | 启停另一个发行版后，Windows 命令突然 `exec format error`，且看不出关联；还没法用互操作自救 | [`wsl/setup/`](wsl/setup/) 步骤 1.3 |
@@ -187,6 +211,7 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **cmd.exe 拒绝 UNC 工作目录** | 静默回退到 `C:\Windows`，路径相关操作全错却不报错 | [`agent/skills/wsl-windows-command/`](agent/skills/wsl-windows-command/) |
 | **WSL 不走 Windows Update** | Windows 锁了版本，却以为 WSL 也一起锁住了；实际两个渠道互不相干 | [`wsl/setup/`](wsl/setup/) 维护节 |
 | **`.wslconfig` 不在仓库里，代理就必然坏** | `host_ip="127.0.0.1"` 只在 `networkingMode=mirrored` 下成立。复刻时漏掉这个 Windows 侧文件，WSL 退回 NAT，`127.0.0.1` 指向它自己，所有代理请求 connection refused——而报错离原因很远，`~/.shell_common` 里没有任何线索 | [`wsl/setup/`](wsl/setup/) 步骤 0.1 |
+| **新装发行版的默认用户是 root，直到有人回答那个提示** | `wsl -d <Name> -- whoami` 打印 `root`、`HOME=/root`，初始设置看起来做完了，其实没有；Agent 于是把配置写进 `/root`，而不是真正的家目录。用户名提示只在**交互式启动**时弹：`--no-launch` 不消费它，非交互探测也触发不了 | [`wsl/storage/wsl-distro-move-to-d-drive.md`](wsl/storage/wsl-distro-move-to-d-drive.md) |
 | **ChkTeX 在中文文档刷屏误报** | `Use "'" (ASCII 39) instead of "´"` 刷满输出，真错误被淹没。它逐字节扫描而非 UTF-8 解码，汉字的后续字节落在 `´`(0xB4) 位上就被当成排版错误。改规则集没用，只能关掉 | [`tools/latex/`](tools/latex/) |
 | **`-Source` 给了仍然去连网** | 离线装 Windows 中文字体包，ISO 都挂好了还是失败——`Add-WindowsCapability` 不加 `-LimitAccess` 会先去问 Windows Update | [`tools/latex/`](tools/latex/) · [`agent/skills/linux-cjk-font/`](agent/skills/linux-cjk-font/) |
 | **pnpm 拦掉 postinstall 但不报错** | `pnpm update -g --latest` 退出码 0、看着装好了，命令却跑不起来——pnpm 10 起默认不执行生命周期脚本。要 `--allow-build=<包名>` 显式放行 | [`wsl/storage/pnpm-npm-cleanup-20260920.md`](wsl/storage/pnpm-npm-cleanup-20260920.md) 3.2 |
@@ -215,6 +240,9 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **一个端口不能同时当 HTTP 和 SOCKS** | `ALL_PROXY=socks5h://...:<端口>` 报 "Connection reset by peer"，而同一端口上的 `HTTP_PROXY` 正常。WSL 原配置用的是混合端口，但本机这个代理软件占两个口：HTTP 一个、SOCKS5 另一个（握手分别是 `05 00` 和 `HTTP/1.1 200 Connection established`）。一个端口一个变量，永远分开写 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
 | **写死的 messaging socket 路径让会话互相挤掉** | 第二个实例死于 "--messaging-socket-path points to a live socket"，而 peer 通知全落进持有该路径的那个会话，于是另一个 Termux session 看起来被消息刷屏。CLI 自己的约定是每个会话在 `cc-socks` 目录下各占一个 socket 文件，靠扫描目录发现 peer；写死文件名把两件事都破坏了。另外 `CLAUDE_CODE_MESSAGING_SOCKET` 的优先级高于命令行参数 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
 | **`${PATH#...}` 删掉的不止它匹配的那一段** | 为把某个目录提到 PATH 最前面而重排，会静默丢掉另一个目录：`#` 剥离的是**最短**前缀，排在匹配段之前的那个条目会一起没了。这里整个 pnpm bin 目录消失，`mcode`、`mcode-tools`、`pnpm`、`pnpx` 一并不见。要移动就按段重建整个列表 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **Android SELinux MCS 隔离导致容器内创建的软链接在宿主报未找到** | 在 root 容器内创建 `Debian -> debian` 软链接，Termux 执行依然报 `No command Debian found`：符号链接属主为 `root:root` 且缺失 App 独有的 MCS 类别标签（`:c250,c256...`），宿主普通用户检索 PATH 时触发内核 `EACCES` 拦截并降级至 `command-not-found`。需部署实体文件并用 `chcon --reference` 对齐 SELinux 标签 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **Toybox `chroot` 导致登录 Shell 滞留在根目录 `/` 而非 `~`** | 进入容器后当前工作目录为 `/` 而非 `/root`（`~`），随手建文件极易污染根目录。Toybox `chroot` 切换后重置 cwd 为 `/`，直接拉起的登录 Shell 会继承该目录；通过 GNU `env -i -C /root` 启动可在进 Shell 前原子切换工作目录 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **Claude Code 在 root 容器下拒绝 `--dangerously-skip-permissions`** | 在 root chroot 下配置 `bypassPermissions` 启动报错 `cannot be used with root/sudo privileges for security reasons`。CLI（2.1.325 实测）有一道 `getuid() === 0` 检查，仅在声明了容器沙箱时豁免：只在容器内的 `~/.claude/settings.json` 的 `env` 节点添加 `"IS_SANDBOX": "1"`，不要写进共享的 `agent/claude-code/settings.json` | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
 | **热插拔移动硬盘在 chroot 隔离中失明** | 进入 Debian 容器后再插入移动硬盘，Android 正常识别但容器内 `/android/mnt/media_rw` 为空。`unshare -m` 与 `rprivate` 阻断了挂载传播，需通过 `nsenter -t 1 -m` 穿透宿主命名空间动态桥接挂载 | [`agent/skills/termux-debian-external-drive/`](agent/skills/termux-debian-external-drive/) |
 | **NTFS 权限伪造阻断 SSH 密钥认证** | 移动硬盘上私钥执行 `chmod 600` 虽返回 0 但底层 FUSE 驱动固化为 `770`，触发 OpenSSH 门禁拒连；必须用 `tar` 归档保留 POSIX 权限并在本地 Linux 文件系统解压 | [`agent/skills/termux-debian-external-drive/`](agent/skills/termux-debian-external-drive/) |
 | **Android Bionic Linker 命名空间断裂与 Magisk 桩覆写** | 在 Debian chroot 内直接调用宿主 `/system/bin/settings` 报 `cannot execute` 或动态链接器崩溃（`file offset for libutils.so >= file size: 0 >= 0`）。Magisk tmpfs 覆写了动态库且链接器缺少运行时拓扑，必须使用单维度 `nsenter -t 1 -m` 穿透宿主 Mount Namespace 执行 | [`agent/skills/android-miui-settings/`](agent/skills/android-miui-settings/) |
@@ -224,7 +252,8 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **Clash 桌面系统代理对 CLI 穿透失效** | 桌面浏览器能翻墙但终端直连超时；`bx` 遇 `socks5h` 报 exit 5 | [`linux-desktop/`](linux-desktop/) 第 2.2 节 |
 | **Linux Mint 22 换源脱靶与更新超时** | 误改 ubuntu.sources 丢 Mint 桌面仓库；官方海外源 300 kB/s 掐断更新器。双轨切清华 TUNA 源提速 16 倍 | [`linux-desktop/`](linux-desktop/) 第 2.3 节 |
 | **安装脚本污染 Shell 四层分层** | `pnpm setup` 与 nvm 自动追加 rc 文件破坏单一真相来源 | [`linux-desktop/`](linux-desktop/) 第 2.4 节 |
-| **终端粘贴快捷键提示无剪贴板工具** | CLI 按 Ctrl+V/Alt+V 报 `no supported clipboard tool`（agy），或在 Claude Code 里静默失败——只弹一句 `No image found in clipboard.`，那句 `Image in clipboard` 提示永不出现；原生桌面缺 `xclip`/`wl-clipboard`。Claude Code 每次按键现取工具，装完无需重启（Go 系 CLI 则在 init 期缓存 `LookPath`） | [`linux-desktop/`](linux-desktop/) 第 2.5 节 |
+| **终端粘贴快捷键提示无剪贴板工具** | CLI 按 Ctrl+V/Alt+V 报 `no supported clipboard tool`（agy），或在 Claude Code 里静默失败——只弹一句 `No image found in clipboard.`，那句 `Image in clipboard` 提示永不出现；原生桌面缺 `xclip`/`wl-clipboard`，WSLg 上同样缺——那里由 WSLg 桥接宿主的 Windows 剪贴板，所以同样三个包就能修好。Claude Code 每次按键现取工具，装完无需重启（Go 系 CLI 则在 init 期缓存 `LookPath`） | [`linux-desktop/`](linux-desktop/) 第 2.5 节 |
+| **`sudo chsh -s <shell>` 不带用户名，改的是 root 的 shell** | 自己的默认 shell 还是 `/bin/bash`，root 的却变成了 `/bin/zsh`，全程没有任何报错：`chsh` 不带用户名作用于"调用者"，而 `sudo` 把调用者变成了 root | [`wsl/setup/`](wsl/setup/) 步骤 3 |
 | **GNOME Terminal 静默丢弃 OSC 52 剪贴板** | `/copy` 提示复制成功但系统剪贴板为空；VTE 长期缺 OSC 52 写入，推荐 Ghostty | [`linux-desktop/`](linux-desktop/) 第 2.6 节 |
 | **历史命令迁移引发 Zsh corrupt history** | 拼接多设备历史后 Zsh 启动崩溃；包含 `\x00` 空字节破坏解析，需清洗归一化 | [`linux-desktop/`](linux-desktop/) 第 2.7 节 |
 | **`sudo` 清洗代理导致 APT 海外源超时** | 普通终端能翻墙但 `sudo apt` 连 Typora 超时；`env_reset` 剥离变量，需设 `sudoers` 白名单 | [`linux-desktop/`](linux-desktop/) 第 2.8 节 |
@@ -242,6 +271,16 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **荣耀平板：代理变量指向死端口** | pnpm 报 `tunnel error ... connection refused (os error 111)`、npm 一直转圈，但浏览器和 `apt` 都正常——`~/.shell_common` 把代理导出到了一个没人监听的本地端口，而浏览器用自己的设置、无视这些变量。先探测端口：refused 就清变量，open 就别动 | [`honor-linuxlab/`](honor-linuxlab/) 第 2.1 节 |
 | **荣耀平板：fcitx5 不出候选词** | `Ctrl+空格` 能切换但无候选词。两条根因叠加：`~/.config/fcitx5/profile` 的活动组首项是 `keyboard-us` 而不是 `pinyin`；缺 `~/.config/fcitx5/config` 则只剩出厂的 `Ctrl+空格`，而这个键在实体外接键盘上被 MagicOS 拦成系统语言切换。**与 locale 无关**——locale 改动发生在故障报出 20 分钟之后，只因紧接着被问起才看起来像因果 | [`honor-linuxlab/`](honor-linuxlab/) 第 2.2 节 |
 | **荣耀平板：某些组合键根本进不到容器** | 输入要穿过 Android 宿主、X server、应用三层，宿主对部分组合键有独占定义。`Ctrl+Shift+V` 在实体键盘上是死的（连 Qt 快捷键编辑器都收不到事件），而 `Ctrl+Shift+C` 等其它字母正常。`xdotool key` 可以用来区分是第 1 层还是第 2、3 层。解法是换到空闲字母，**容器内改任何配置都碰不到第 1 层** | [`honor-linuxlab/`](honor-linuxlab/) 第 2.3 节 |
+| **荣耀平板：`readdir` 把硬链接文件说成符号链接** | PRoot 的 `link()` 是用「暂存对 + `.l2s.` 魔法命名空间」模拟的。inode 本身是好的，`lstat` 仍说是普通文件，但共享该 inode 的目录项在 `readdir` 里全被标成 DT_LNK；而且软链链上一旦经过 `.l2s.*` 这一节，`stat()` 就 EPERM，`mv -f` 报的是 "cannot stat"——它根本没走到 rename。要判类型就用 `lstat` 或按名字匹配，别信目录项类型 | [`honor-linuxlab/`](honor-linuxlab/) 第 2.7 节 |
+| **荣耀平板：`/proc` 上写着 `hidepid=invisible`，实际什么都没挡住** | 挂载选项确实在，但容器里所有进程共用同一个宿主 uid，`hidepid` 就全部放行了——`/proc` 下 62 个 pid 的 `cmdline` 全部可读。同时 `ps` 会列出一些在 `/proc` 下根本没有条目的 pid，而容器内又读不到 `/proc/self/ns/pid` 和 `pid_max`，没法自查处在哪个命名空间。挂载选项只能当声明读，不能当行为读 | [`honor-linuxlab/`](honor-linuxlab/) 第 2.8 节 |
+| **GNOME 的 `http enabled` 并不拦 Firefox** | KDE 上桌面代理存在两个互不相通的存储，`org.gnome.system.proxy.http enabled=false` 看着像「HTTP 代理被关了」——但 libxul 只查 `mode` 与各协议的 host/port。headless A/B/C 取证：`mode=manual` 两种取值都出图，`mode=none` 超时 | [`linux-desktop/fedora/`](linux-desktop/fedora/README.zh.md) 4.1 节 |
+| **pnpm 12 不从 `~/.npmrc` 读供应链键** | 把 `dangerouslyAllowAllBuilds` / `minimumReleaseAge` 抄进 `~/.npmrc` 是无效动作：pnpm 只从 `~/.config/pnpm/config.yaml` 读，npm 11 则在每一条命令上打印 `Unknown user config` | [`linux-desktop/fedora/`](linux-desktop/fedora/README.zh.md) 4.2 节 |
+| **KDE 把桌面代理配置劈成了两半** | 代理客户端的系统代理开关只写 `kioslaverc`；Firefox 读 GNOME schema、Chromium 读 `kioslaverc`、CLI 两边都不读——于是开关关着时 Firefox 走代理而 Chromium 不走。「一开 TUN 就好了」是掩盖缺口，不是诊断；解法是让客户端自己持有 `kioslaverc` | [`linux-desktop/fedora/`](linux-desktop/fedora/README.zh.md) 4.3 节 |
+| **Fedora 的 Noto CJK family 名自带 SC 后缀** | Mint 那条 fontconfig 规则匹配 `Noto Sans CJK` 再改写成 SC 变体；Fedora 按地区拆成独立 family，于是匹配不到任何东西，而 `zh-Hans` 这种 BCP-47 形式仍会跌到拉丁 family | [`linux-desktop/fedora/`](linux-desktop/fedora/README.zh.md) 4.4 节 |
+| **Fedora 上的 Ghostty 来自 COPR，而 Flathub 从来没收录过它** | `dnf list --available ghostty` 查不到，是因为 Fedora 官方仓库不收录它——但 `dnf copr enable scottames/ghostty` 能装上 1.3.1。而 *filtered* 版 flathub 远端是个假线索：它的过滤器文件只有一行 `# Unfiltered`，API 那句 "App not found" 的真身是 Ghostty 压根没发布到 Flathub。上游只发布 macOS 二进制，其余平台全看打包者 | [`linux-desktop/fedora/`](linux-desktop/fedora/README.zh.md) 4.7 节 |
+| **KDE 的自定义快捷键不能靠盲写** | `kglobalshortcutrc` 的三种候选组布局都没能在 kglobalaccel daemon 里注册出组件，而 KDE 6.7 的 `Component` 接口又没有 `registerShortcut`——格式必须来自写它的程序，而写它的是 GUI | [`linux-desktop/fedora/`](linux-desktop/fedora/README.zh.md) 4.8 节 |
+| **Fedora 的 `uv` 在你明说之前不下载 Python** | `uv run --python 3.12` 报 "No interpreter found for Python 3.12 ... Python downloads are set to 'manual'"：RPM 自带的 `/etc/uv/uv.toml` 里写着 `python-downloads = "manual"`。显式 `uv python install 3.12` 装一次，并钉进 `~/.config/uv/.python-version` | [`linux-desktop/fedora/`](linux-desktop/fedora/README.zh.md) 4.9 节 |
+| **会话环境把代理变量传了下来** | rc 文件里已经不写死端口了，终端却还是没网：`systemctl --user show-environment` 里仍留着客户端注入的变量，而从面板启动的终端在 rc 文件运行**之前**就继承了这份快照——于是看不见的那个来源赢了。变量要在进入进程的地方清掉，快照本身也要清 | [`linux-desktop/fedora/`](linux-desktop/fedora/README.zh.md) 4.10 节 |
 | **Node 大版本升级作废全部原生模块** | Node 22 一变 24，`better_sqlite3.node was compiled against NODE_MODULE_VERSION 127 ... requires 137` 当场炸；报错却归咎于 npm 构建脚本，提示传 `--allow-scripts`——而包其实是 pnpm 装的、脚本当初成功跑过，照做全无用处。每次升 Node 大版本后，必须把所有带原生依赖的全局包重装一遍 | [`linux-desktop/`](linux-desktop/) 第 2.17 节 |
 | **Ghostty 静默忽略未知配置键** | `shell = /usr/bin/zsh` 不报错、也毫无效果——该键名是 `command`，而 Ghostty 1.3.1 对不认识的键一声不吭。`+show-config` 同样分辨不出；只有 `+validate-config` 会带行号报出 `unknown field` | [`linux-desktop/`](linux-desktop/) 第 2.18 节 · [`linux-desktop/files/ghostty/config`](linux-desktop/files/ghostty/config) |
 | **Clash Verge Rev 把自己的失败当成功上报** | 连接面板永远空白、托盘菜单失效，全程没有任何报错：WebSocket 连接失败被吞成每秒重连，托盘找不到时直接 `Ok(())`。静默失败是上游写进政策的，不是个案——85 个百行级 Rust 文件里 48 个零测试，Linux 只被编译和发布，从不做功能测试 | [`linux-desktop/`](linux-desktop/) 第 2.19 节 |
@@ -254,7 +293,19 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **仓库自带的两道门禁缺输入时会静默降级** | 缺 `tools/.sync-map` → `sync-skills.sh` 直接 exit 2，skill 核对与部署能力整体失效；缺 `tools/.privacy-names` → `privacy-gate.sh` 打印 `the literal-name check was skipped` 后**照样 exit 0**。两者第一眼都不像故障 | [`tools/README.md`](tools/README.md) |
 | **`bash -lc` 与 `bash -ic` 解析出的 PATH 不是一回事** | Debian 的 `~/.bashrc` 对非交互 shell 提前 return，于是「登录但非交互」的 shell 根本不读 `~/.shell_common`：nvm 缺失，`node` 回落到 `/usr/bin/node`（交互 shell 报 v24 时它还是 v22）。用一种形式验证、在另一种形式里使用，就会得出「改动没生效」的错误结论 | [`shell/`](shell/) |
 | **`Add-AppxPackage` 说的是「缺框架」而不是「包坏了」** | 装 winget v1.29.380 报 `0x80073CF3 ... depends on a framework that could not be found`，而机器上明明已经列出了 `WindowsAppRuntime` —— 那是 `.CBS` 变体，包名不同，部署校验不认 | [`windows/terminal/winget-and-terminal-without-store.md`](windows/terminal/winget-and-terminal-without-store.md) 第 2.2 节 |
+| **`profiles.defaults` 的 `startingDirectory: null` 到不了 WSL 标签页** | cmd 与 PowerShell 都继承了目录，WSL 标签仍开在 `~`——WSL fragment 给 profile 写了 `startingDirectory: "~"`，profile 级优先于 defaults。在 `profiles.list` 里用同一 `guid` 覆盖成 `null` | [`windows/terminal/windows-terminal-system32-auto-home.md`](windows/terminal/windows-terminal-system32-auto-home.md) 第 2 节 |
+| **Agent 的 shell 带 `-NoProfile`，profile 里的 UTF-8 不执行** | 交互 pwsh 打印 emoji 正常，同一条命令走 Agent 却变 `?`——harness 用 `pwsh -NoProfile` 起 shell，四个 profile 全跳过。把 `[Console]::OutputEncoding` 放在该次调用的第一条语句；同进程里后置赋值无效，`chcp` 也仍报 936（stdout 是管道） | [`windows/powershell/cjk-command-io.md`](windows/powershell/cjk-command-io.md) 第 3.1 节 |
 | **双系统开机差 8 小时，几分钟后又自己好了** | 时钟只在网络起来之前是错的，于是看起来像同步问题：RTC 里存的是本地时间，Windows 却被告知它存的是 UTC（`RealTimeIsUniversal=1`），每次开机都被 NTP 悄悄修好。屏幕在骗人，硬件没有 | [`os-install/dual-boot-time-sync.md`](os-install/dual-boot-time-sync.md) 第 2 节 |
+| **改了 `LocalRTC`，Linux 侧检查全过，下一次进 Windows 差 8 小时** | 每一侧的探针只看得到自己的读数和自己的写入，所以只改一侧的改动在另一个系统开机之前看起来都是干净的。Windows 让 RTC 保持在它的 `RealTimeIsUniversal` 指定的约定上（两台机器实测：开关 1 = UTC，开关 0 = 本地时间），所以动 `LocalRTC` 之前先读这个开关。改完要立刻重启：正在运行的内核仍按开机时被告知的约定写 RTC | [`os-install/dual-boot-time-sync.md`](os-install/dual-boot-time-sync.md) 第 1.1 节、第 8 节事故三 |
+| **minimax-code 会话压缩一次之后，每个 prompt 都报错** | 本来能跑的那一轮报 `HistoryScannerError: Canonical history scan failed: unsafe-artifact`，之后每个 prompt 也报——下一个直接死在 `history_read` 阶段，模型根本没被调用。历史内容是好的：压缩产生的父快照是用 `link()` 发布的，而 PRoot 下 `readdir` 会把「一个 inode 多个名字」的文件的目录项类型报成 `DT_LNK`，校验器读成了「软链接」。压缩本身也不是被上下文窗口逼的（512000 token 只用了 35%）：工具输出的字节预算自己就会触发它 | [`agent/minimax-code/jsonl-repair.md`](agent/minimax-code/jsonl-repair.md) 第 3、5-6 节 |
+| **英文显示语言把中文导进日文字形** | Explorer 用的 `Segoe UI Variable*` 在 `SystemLink` 里根本没有条目，英文镜像的链接表又把 Meiryo / MS UI Gothic、JhengHei 排在微软雅黑前面——中文字体装齐了，是选错了。重排 `SystemLink`（雅黑提到链首，并补 `Segoe UI Variable` 基础名）——实测修好了 Explorer；只改 `FontMapperFamilyFallback` 毫无变化。别靠切显示语言「修」 | [`windows/display-font-fallback-20261117.md`](windows/display-font-fallback-20261117.md) 第 3 节 |
+| **常驻输入法会把 `Set-WinUserLanguageList -Force` 改回去** | 用 cmdlet 写入 `zh-Hans-SG`，同进程回读正确，8 秒后新进程又变回 `zh-Hans-CN`；直接写 `HKCU\Control Panel\International\User Profile\Languages` 才稳。cmdlet 广播了设置变更，输入法随即回应 | [`windows/display-font-fallback-20261117.md`](windows/display-font-fallback-20261117.md) 第 4 节 |
+| **Wayland 上输入法只进了一半应用** | 终端、Plasma 搜索框、Dolphin 里中文正常，Chrome 和 Firefox 里不正常，且不报任何错：`fcitx5-diagnose` 显示正常的应用是 `frontend:dbus`，坏掉的是 `frontend:wayland`——分裂点正是 Wayland 这条路径本身。浏览器的原因是 **Fcitx5 不是 KWin 的输入法**：在系统设置 -> 键盘 -> 虚拟键盘里选中 Fcitx 5，Chrome（不加参数）和 Firefox 在原生 Wayland 下就都能打字，设不设 `GTK_IM_MODULE` 都一样。途中还有两个成因：`XMODIFIERS=@im=none`（imsettings 因语言代码跳过）和方案根本不读取的 `default.custom.yaml` 补丁。去掉全局的 `GTK_IM_MODULE`/`QT_IM_MODULE` 无论往哪个方向都不是修法 | [`linux-desktop/wayland-fcitx5-rime.zh.md`](linux-desktop/wayland-fcitx5-rime.zh.md) |
+| **共用 shell 文件留下了失效的代理** | 探测时没有任何代理端口应答，`shell/files/shell_common` 第 5 节却只清掉了自己的辅助变量，于是从父 shell 或桌面会话继承来的 `HTTPS_PROXY` / `ALL_PROXY` 原样保留，把每个请求都指向一个已关闭的端口 —— bash 和 zsh 都一样，已在一个没有任何监听的网络命名空间里实测。第 5 节现在会在探测前先清掉这六个代理变量 | [`shell/files/shell_common`](shell/files/shell_common) 第 5 节 |
+| **共用文件的注释承诺了一个从未存在的 NO_PROXY** | `shell/files/shell_common` 写着「NO_PROXY below stays either way」，然后什么都没导出：代理开着时，回环流量走了代理，回来就是一个空体 502。Fedora 那份探针副本里其实一直有这行导出——缺的是原件，而一份号称逐字复制的副本，反而比它的源头更完整 | [`linux-bootstrap/`](linux-bootstrap/README.zh.md) |
+| **Ghostty 1.3.x 有两个配置文件名，而且 GUI 会造出那个空的** | 规范路径是 `$XDG_CONFIG_HOME/ghostty/config.ghostty`，但 `config` 同样会被读，两份按键合并、`config.ghostty` 优先；两个文件都不存在时，GUI 首次运行会创建一个**空的** `config.ghostty`。只写进 `config` 的配置，并不是工具自己认的规范路径；而校验时不用粘连写法 `--config-file=<path>`，它对哪个文件都不说话 | [`linux-bootstrap/`](linux-bootstrap/README.zh.md) |
+| **Plasma Wayland 上，CopyQ 记得住历史却不能替你粘贴，`xdotool` 则完全打不了字** | CopyQ 能记录原生 Wayland 和 XWayland 程序里的复制，自带的 `Meta+V` 快捷键也能用，但它模拟的 Ctrl+V 送不到当前窗口；`xdotool type` 连 XWayland 窗口都打不进去。`ydotool`（uinput）到哪都能打字，两件事都靠它绕过去。往输入法里自动打字还得把按键间隔放到 130-140 ms，否则会报出人手敲时并不存在的失败 | [`linux-desktop/wayland-clipboard-automation.zh.md`](linux-desktop/wayland-clipboard-automation.zh.md) |
+| **机械硬盘上的后备 Linux 是从固态硬盘启动的** | Mint 装在机械硬盘上，本来是为了防固态硬盘坏掉，但它的安装程序把 GRUB 装进了固态硬盘上已有的 ESP（`EFI/ubuntu`），机械硬盘自己的 ESP 却是空的 —— 固态硬盘一坏，后备系统的入口也跟着没了。后备系统的引导必须放在它自己那块盘上；重装固态硬盘上的 Linux 时，也必须复用那个 ESP、不能格式化 | [`os-install/triple-boot-layout.zh.md`](os-install/triple-boot-layout.zh.md) |
 
 ---
 

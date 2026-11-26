@@ -10,8 +10,8 @@ justified it.
 
 | Script | Runs on | What it reports | Exit code |
 | :--- | :--- | :--- | :--- |
-| [`check-time-sync.ps1`](check-time-sync.ps1) | Windows | the time service, the sync mode, the measured NTP offset, an independent HTTP `Date` cross-check, the RTC convention (`RealTimeIsUniversal`), fast startup, and the boot-time error hidden by a later sync | 0 = clean, 1 = findings, 2 = a probe could not run |
-| [`check-time-sync.sh`](check-time-sync.sh) | Linux | the clock mode (`LocalRTC`), the time zone, the NTP state, the RTC read under **both** conventions against the system clock, the measured offset (chrony or systemd-timesyncd), an HTTP `Date` cross-check, and the value the other OS has to match | 0 = clean, 1 = findings, 2 = a probe could not run |
+| [`check-time-sync.ps1`](check-time-sync.ps1) | Windows | the time service, the sync mode, the measured NTP offset, an independent HTTP `Date` cross-check, the RTC convention (`RealTimeIsUniversal`) in the registry and the one in force for this boot (from `Kernel-General` event 1), fast startup, and the boot-time error hidden by a later sync | 0 = clean, 1 = findings, 2 = a probe could not run |
+| [`check-time-sync.sh`](check-time-sync.sh) | Linux | the clock mode (`LocalRTC`), the time zone, the NTP state, the RTC read under **both** conventions against the system clock, whether the kernel writes the RTC (`rtcsync`) and in the convention `LocalRTC` names now, the measured offset (chrony or systemd-timesyncd, with an HTTP `Date` header as the fallback), how far off this boot started (chrony's first correction), and the value the other OS has to match | 0 = clean, 1 = findings, 2 = a probe could not run |
 
 ## Usage
 
@@ -36,14 +36,19 @@ bash check-time-sync.sh --http-host www.example.com
 
 - `OK` / `INFO` -- nothing to do.
 - `WARN` -- a real condition worth a decision: the service is off, a source
-  failed, fast startup is on, the clock drifts.
+  failed, fast startup is on, the clock drifts, or a convention setting was
+  changed after boot and is not in force yet (reboot).
 - `FAIL` -- a defect, not a preference. Concretely: the RTC disagrees with the
   system clock under **both** readings; the RTC's content and this side's
-  `LocalRTC` setting disagree; the clock is a timezone-scale distance away from
-  an independent source; a registry key could not be read at all; the Windows
-  Time service is missing; or time-service events carry timestamps later than
-  now -- the signature of a clock that was running fast and was later
-  corrected.
+  `LocalRTC` setting disagree; this boot started one zone offset out; the clock
+  is a timezone-scale distance away from an independent source; a registry key
+  could not be read at all; the Windows Time service is missing; or
+  time-service events carry timestamps later than now -- the signature of a
+  clock that was running fast and was later corrected.
+
+Each probe sees one side. A clean run on Linux does not show what Windows will
+read, and the reverse: after a convention change, boot into the other system
+and run its probe too.
 - `SKIP` -- the probe could not run here (no `chronyc`, no root for the RTC, no
   network). Not a finding; check the other side by hand.
 

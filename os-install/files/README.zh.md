@@ -8,8 +8,8 @@
 
 | 脚本 | 跑在哪 | 报告什么 | 退出码 |
 | :--- | :--- | :--- | :--- |
-| [`check-time-sync.ps1`](check-time-sync.ps1) | Windows | 时间服务、同步模式、NTP 实测偏差、独立的 HTTP `Date` 交叉校验、RTC 约定（`RealTimeIsUniversal`）、快速启动，以及被「稍后的同步」掩盖的开机偏差 | 0 = 干净，1 = 有发现，2 = 探针没能跑起来 |
-| [`check-time-sync.sh`](check-time-sync.sh) | Linux | 时钟模式（`LocalRTC`）、时区、NTP 状态、**两种约定下**的 RTC 读数与系统时钟对比、实测偏差（chrony 或 systemd-timesyncd）、HTTP `Date` 交叉校验，以及另一套系统必须匹配的值 | 0 = 干净，1 = 有发现，2 = 探针没能跑起来 |
+| [`check-time-sync.ps1`](check-time-sync.ps1) | Windows | 时间服务、同步模式、NTP 实测偏差、独立的 HTTP `Date` 交叉校验、RTC 约定（`RealTimeIsUniversal`）——注册表里的值和本次开机实际生效的值（取自 `Kernel-General` 事件 1）、快速启动，以及被「稍后的同步」掩盖的开机偏差 | 0 = 干净，1 = 有发现，2 = 探针没能跑起来 |
+| [`check-time-sync.sh`](check-time-sync.sh) | Linux | 时钟模式（`LocalRTC`）、时区、NTP 状态、**两种约定下**的 RTC 读数与系统时钟对比、内核是否写 RTC（`rtcsync`）以及是否按 `LocalRTC` 现在指定的约定写、实测偏差（chrony 或 systemd-timesyncd，HTTP `Date` 头作为后备）、本次开机时差了多少（chrony 的第一次校正），以及另一套系统必须匹配的值 | 0 = 干净，1 = 有发现，2 = 探针没能跑起来 |
 
 ## 用法
 
@@ -32,11 +32,15 @@ bash check-time-sync.sh --http-host www.example.com
 ## 怎么读输出
 
 - `OK` / `INFO` —— 不用管。
-- `WARN` —— 值得你做一次决策的真实状况：服务关着、某个源失败、快速启动开着、时钟在漂。
+- `WARN` —— 值得你做一次决策的真实状况：服务关着、某个源失败、快速启动开着、时钟在漂，
+  或者某个约定设置在开机后被改过、还没生效（要重启）。
 - `FAIL` —— 是缺陷不是偏好。具体是：RTC 在**两种**解释下都和系统时钟对不上；RTC 实际装的
-  约定与本侧的 `LocalRTC` 设置互相矛盾；时钟与独立来源差了一个时区量级；注册表键根本读不到；
-  Windows Time 服务不存在；或者时间服务事件带着晚于「现在」的时间戳——那正是「开机时钟跑快、
-  之后被悄悄修好」的签名。
+  约定与本侧的 `LocalRTC` 设置互相矛盾；本次开机时差了一个时区偏移量；时钟与独立来源差了一个
+  时区量级；注册表键根本读不到；Windows Time 服务不存在；或者时间服务事件带着晚于「现在」的
+  时间戳——那正是「开机时钟跑快、之后被悄悄修好」的签名。
+
+每个探针只看得到一侧。Linux 上跑得干净，不代表 Windows 会读对，反过来也一样：改过约定之后，
+要开进另一个系统，把它的探针也跑一遍。
 - `SKIP` —— 这台机器上探针跑不了（没有 `chronyc`、没有 root 读 RTC、没有网络）。这不是
   发现项，另一侧手工查。
 

@@ -1,0 +1,43 @@
+# linux-desktop/files/fcitx5-wayland/fcitx5-profile
+#
+# Fcitx5 input method group.
+# Deploy to:
+#   ~/.config/fcitx5/profile
+#
+# Read this file before assuming it is right for the machine you are on.
+#
+#   DefaultIM=rime
+#     The IM that a new context starts with. Combined with
+#     `ActiveByDefault=True` in fcitx5-config, this means Chinese input is
+#     live from the first keystroke, with no Ctrl+Space needed.
+#
+#   Items order
+#     The order in which the group cycles when the trigger key is pressed.
+#     Put the IM you use most often first.
+#
+# The comment style below is what `fcitx5-configtool` writes, so that
+# re-saving the group from the tool produces no diff. Editing it by hand is
+# fine, but do not fight the tool over the file.
+
+[Groups/0]
+# Group Name
+Name=Default
+# Layout
+Default Layout=us
+# Default Input Method
+DefaultIM=rime
+
+[Groups/0/Items/0]
+# Name
+Name=keyboard-us
+# Layout
+# Layout=
+
+[Groups/0/Items/1]
+# Name
+Name=rime
+# Layout
+# Layout=
+
+[GroupOrder]
+0=Default

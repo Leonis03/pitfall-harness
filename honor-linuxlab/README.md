@@ -392,6 +392,197 @@ deb [trusted=yes] https://ppa.launchpadcontent.net/<owner>/<ppa>/ubuntu <series>
 
 ---
 
+### 2.7 PRoot 的 `link()` 模拟造出一个 `.l2s.` 魔法命名空间
+
+#### 症状
+
+三个症状，同一个根因。
+
+**一、目录里冒出没见过的暂存对：**
+
+```console
+$ printf A > a.txt && ln a.txt b.txt && stat -c '%n  %F  inode=%i  links=%h' a.txt b.txt .l2s.a.txt0001 .l2s.a.txt0001.0002
+a.txt  regular file  inode=3391050  links=2
+b.txt  regular file  inode=3391050  links=2
+.l2s.a.txt0001  symbolic link  inode=3386892  links=1
+.l2s.a.txt0001.0002  regular file  inode=3391050  links=2
+```
+
+`a.txt` 和 `b.txt` 的链接计数是 `2`，而且和 `.l2s.a.txt0001.0002` 是同一个 inode（`inode` 三行相同），
+只有 `.l2s.a.txt0001` 是另一个 inode、而且是货真价实的软链接——它就是发布暂存区本身。
+（`inode` 的数字每次运行都变，要点是那三个名字相同。）
+
+**二、`readdir` 说这两个文件是符号链接，`lstat` 说它们是普通文件：**
+
+```console
+$ node -e 'const fs=require("fs");
+for(const e of fs.readdirSync(".",{withFileTypes:true})){
+  const l=fs.lstatSync(e.name);
+  console.log(e.name.padEnd(20),"readdir.isFile="+e.isFile(),"isSymlink="+e.isSymbolicLink(),
+    "| lstat.isFile="+l.isFile(),"isSym="+l.isSymbolicLink(),"ino="+l.ino,"nlink="+l.nlink);
+}'
+.l2s.a.txt0001       readdir.isFile=false isSymlink=true | lstat.isFile=false isSym=true ino=3399801 nlink=1
+.l2s.a.txt0001.0002  readdir.isFile=true isSymlink=false | lstat.isFile=true isSym=false ino=3396441 nlink=2
+a.txt                readdir.isFile=false isSymlink=true | lstat.isFile=true isSym=false ino=3396441 nlink=2
+b.txt                readdir.isFile=false isSymlink=true | lstat.isFile=true isSym=false ino=3396441 nlink=2
+```
+
+注意 `a.txt` 是 `ln` **之前**就存在的普通文件，做了一次 `link()` 之后它的目录项类型也变成了 DT_LNK。
+
+**三、软链链上一旦出现 `.l2s.*` 这一节，`stat()`（跟随）就返回 EPERM：**
+
+```console
+$ printf N > src && mv -f src name
+mv: cannot stat 'name': Operation not permitted
+```
+
+#### 根因剖析
+
+`[实测]` PRoot 不实现真正的 `link()`，它把硬链接模拟成「写一个暂存文件 → 建一条**真**软链
+`.l2s.<name><NNNN>` 指向暂存文件 `.l2s.<name><NNNN>.000<M>` → 再让目标名指向同一个 inode」。
+上面 `ls -la` 里 `.l2s.a.txt0001` 是货真价实的软链（`readlink` 读得出 `.l2s.a.txt0001.0002`），
+`.l2s.a.txt0001.0002` 才是数据，`a.txt` / `b.txt` 与它共享同一个 inode。
+
+`[实测]` 两个副作用：
+
+1. **共享 inode 的所有目录项，`readdir` 都返回 DT_LNK。** inode 本身是好的——`lstat` 仍然
+   说是普通文件，`nlink` 也照常计到 2。
+2. **`.l2s.*` 是 PRoot 自己的命名空间，路径解析拒绝穿过它。** 所以只要一条软链的链路上
+   有一节是 `.l2s.*`，跟随解析就返回 EPERM。
+
+一句话划清边界：**目标本身是个叫 `.l2s.foo` 的普通文件 → 覆盖成功；目标是个软链接、
+只要它指向的链路上有一节叫 `.l2s.*` → 前置 stat EPERM。** 是「链路里」，不是「名字里」。
+
+`[推断]` 第 1 条的机制是内核的目录项类型缓存过期：同一个 inode 的类型在 `getdents` 里被
+记成了 DT_LNK，但 `lstat` 直接查 inode 所以说的是实话。没读到 PRoot 源码，这条按推断记。
+
+`[实测]` 触发条件与链深无关，只看链路上有没有 `.l2s.*` 这一节：
+
+| 目标形态 | `mv -f` 结果 |
+| :--- | :--- |
+| 普通文件 `plain` | OK |
+| 普通文件 `.l2s.foo` | OK |
+| 一级软链 `s -> p` | OK |
+| 两级链 `s1 -> s -> p`（无 `.l2s.`） | OK |
+| 三级链 `s2 -> s1 -> s -> p`（无 `.l2s.`） | OK |
+| 一级软链 `.l2s.s -> p` | **EPERM** |
+| 两级链 `name -> .l2s.s -> p` | **EPERM** |
+| 两级链 `s -> .l2s.s -> p` | **EPERM** |
+| 三级链 `s2 -> .l2s.s -> p` | **EPERM** |
+
+`[实测]` 注意报错是 `mv: cannot stat 'X': Operation not permitted`——**`mv` 根本没走到 `rename()`，
+是它前置的 `stat()` 就失败了**。所以这不是"rename 被拒"，而是"这个目标 stat 不了"。
+把结论写成"rename 在这个文件系统上被拒绝"是错的，会让人以为所有覆盖写都做不了。
+
+`[实测]` 各运行时的语义还各不相同，同一段代码换个语言就换个行为：
+
+| 运行时 | 判"是不是符号链接" | 判"是不是普通文件" |
+| :--- | :--- | :--- |
+| Node `fs.Dirent` | `isSymbolicLink()` 信 `d_type` | `isFile()` **不跟随**软链 → 软链不是文件 |
+| Python `os.DirEntry` | `is_symlink()` 信 `d_type` | `is_file()` **跟随**软链 → 指向普通文件的软链是文件 |
+| Python `pathlib.Path.glob()` | 不判 | 只按**名字**匹配，完全不看目录项类型 |
+
+#### 处置
+
+- **不要按目录项类型筛文件。** 要判断"是不是符号链接"就用 `lstat`；要列举就用
+  `pathlib.Path.glob()`（只按名字），或者直接按路径读。
+- **不要用 `mv -f` / `cp -f` 去覆盖一个软链。** 先 `unlink` 再重建：
+  ```bash
+  cp target "$HOME/<backup>/target"    # 先备份
+  rm target                            # 拆掉旧目录项
+  cp "$HOME/<backup>/target" target    # 重新写回，字节相同
+  ```
+  重建后目录项变新，`readdir` 会重新报 DT_REG。**不要手改文件内容**——内容是被哈希进父标记的。
+- **`.l2s.*` 别当垃圾删。** 它和目标名共享 inode，是发布过程的暂存残留，会自己消失；
+  在发布进行中删掉它可能破坏正在写的文件。
+
+#### 为什么值得记
+
+这条坑的伪装性极强：**inode 是好的、内容是好的、哈希对得上**，唯一坏掉的是"目录项类型"
+这一个元数据。于是它看起来像"文件坏了"，实际坏的是"关于文件类型的一个判断"。
+而且它只在**平板 PRoot** 上出现——同一段 `link()` 代码在 WSL 或物理机上没有任何异常，
+所以从别的机器上写出来的脚本到了平板就会诡异地失败。
+
+整条复现（含 2.8 的 `/proc` 一节）：
+
+```bash
+bash honor-linuxlab/files/proot-fs-probe.sh
+```
+
+应用层的具体症状与修法另见 `agent/minimax-code/jsonl-repair.md`（另一个分支上，尚未合入
+`main`）：MiniMax Code 用 `link()` 发布会话快照，压缩产物因此被判成符号链接，
+于是**压缩一次之后该会话的每个 prompt 都会报 `HistoryScannerError`**。
+
+---
+
+### 2.8 `/proc` 上挂着 `hidepid=invisible`，但它在这台平板上形同虚设；`ps` 和 `/proc` 也不是同一份视图
+
+#### 症状
+
+一个进程在 `ps` 里明明活着，按 pid 去 `/proc` 里查却报**"不存在"**：
+
+```console
+$ cat /proc/10303/cmdline
+cat: /proc/10303/cmdline: No such file or directory
+```
+
+反过来也可能让人误判：看到 mount 选项里有 `hidepid=invisible`，就以为别的进程一概读不到，
+于是放弃了本来能读的信息。
+
+#### 根因剖析
+
+`[实测]` 挂载选项确实带着 `hidepid=invisible`：
+
+```console
+$ mount | grep ' /proc '
+proc on /proc type proc (rw,relatime,gid=3009,hidepid=invisible)
+```
+
+`[实测]` **但它没有挡住任何东西。** PRoot 把容器里的所有进程都放在同一个宿主 uid 下
+（实测 `/proc` 下 62 个 pid 的 `cmdline` **全部可读**，`ps` 显示它们同属 uid `10303`，
+而容器内自己的 uid 是 `1000`）。`hidepid` 的判定是"同 uid 即放行"，于是这条选项在这台
+平板上不起任何作用。
+
+`[实测]` 反过来，`ps` 列出的 pid 里**确实有在 `/proc` 下查不到条目的**：连续 5 轮采样，
+每次都能撞上几个。但撞上的全是采样瞬间就退出的进程（`ps` 自己和它的子进程），
+所以这是**竞态，不是规则**。
+
+`[实测]` 容器内**读不到**这些自查用的接口：
+
+```console
+$ readlink /proc/self/ns/pid        # 空
+$ cat /proc/sys/kernel/pid_max      # Permission denied
+```
+
+也就是说，从容器内部**无法判断自己处在哪个 PID 命名空间、pid 号会不会回绕**。
+
+`[推断]` `ps` 的输出里有 13/64 行 `ppid > pid`。单个 PID 命名空间里父 pid 必然小于子 pid，
+这种父子关系只可能来自两个命名空间的视图混在一起。但 Android 的 `pid_max` 很小、pid 号会回绕，
+也能产生同样的现象，而 `pid_max` 在容器内恰好读不到——**这条推断没能证实**，记为 `[推断]`。
+
+#### 处置
+
+- **ENOENT 不等于 EACCES。** 读某个进程的 `/proc/<pid>/*` 拿到"不存在"，先想到"这个 pid 不在
+  当前视图里，或进程刚退出"，**不要**去 `chmod` / `chown` / 提权——那条路走不通。
+- **别被 mount 选项骗了。** `hidepid=invisible` 写着，但同 uid 下它不生效，
+  `/proc/<pid>/cmdline` 该读就读。
+- **要判断命名空间和 pid 分配，容器内查不到**，得从宿主侧看。
+- 需要确认当前容器挂在哪，用 `readlink /proc/self/root`：
+
+```console
+$ readlink /proc/self/root
+/data/data/com.hihonor.pcengine/linuxlab
+```
+
+#### 为什么值得记
+
+"进程不存在"和"我看不见这个进程"在容器里长得很像，而两者的处置完全相反：
+前者要查崩溃，后者要换视角。官方知识库不会讲 mount 选项这一层，而 mount 选项的**字面值**
+（`hidepid=invisible`）和**实际效果**（形同虚设）在平板上正好相反——照字面推理会得出
+两个方向都错的结论。
+
+---
+
 ## 3. 荣耀官方知识库与官方助手
 
 ### 3.1 官方知识库在哪
@@ -466,3 +657,4 @@ YOYO Claw 装在别处时用 `LINUXLAB_CLAW_ROOT=<accounts 目录>` 覆盖默认
 | [`docs-gap.md`](docs-gap.md) | 官方 28 个知识单元 × 本仓库覆盖度逐条比对 |
 | [`../agent/skills/honor-linuxlab/SKILL.md`](../agent/skills/honor-linuxlab/SKILL.md) | 架构与红线、Intent 注入、Debian 卡死、去 Snap 换源、数据保全 SOP |
 | [`files/linuxlab-kb-fingerprint.sh`](files/linuxlab-kb-fingerprint.sh) | 官方知识库指纹与变更检测 |
+| [`files/proot-fs-probe.sh`](files/proot-fs-probe.sh) | PRoot 文件系统语义复现探针（`link()` 模拟、`.l2s.` 命名空间、`/proc` 挂载选项），2.7 与 2.8 的证据 |

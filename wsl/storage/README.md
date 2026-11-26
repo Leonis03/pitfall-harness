@@ -4,7 +4,7 @@
 
 | 文件 | 内容 |
 | :--- | :--- |
-| [`wsl-distro-move-to-d-drive.md`](wsl-distro-move-to-d-drive.md) | 把发行版的 `ext4.vhdx` 从 C 盘迁到 D 盘：`wsl --manage --move` 优先，导出/导入兜底；**系统重装后复用已有 vhdx** 走同一篇的「复用已有的 ext4.vhdx」一节（`wsl --import-in-place` + 导入前的 ACL 归一化 + WSL 本体重装） |
+| [`wsl-distro-move-to-d-drive.md`](wsl-distro-move-to-d-drive.md) | 把发行版的 `ext4.vhdx` 从 C 盘迁到 D 盘：`wsl --manage --move` 优先，导出/导入兜底；**新装**直接 `wsl --install --location` 指定位置；**默认用户是 root 的坑**（用户名提示只在交互式启动时弹，非交互调用不触发，判据看注册表 `DefaultUid`）；**系统重装后复用已有 vhdx** 走同一篇的「复用已有的 ext4.vhdx」一节（`wsl --import-in-place` + 导入前的 ACL 归一化 + WSL 本体重装） |
 | [`pnpm-npm-cleanup-20260920.md`](pnpm-npm-cleanup-20260920.md) | pnpm 12 / npm 双端空间清理，以及 pnpm 10+ 默认拦掉 postinstall 的坑 |
 
 回收 vhdx 空间：**WSL 3.0 起**用 `wsl --manage <Name> --compact`（先 `fstrim`、再 `wsl --shutdown`），
